@@ -2,132 +2,90 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vehicle Path Tracer & Alert System</title>
-    
-    <!-- Leaflet CSS for Map Rendering -->
+    <title>ANPR Control Center - Real-time Alerts</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f0f2f5; }
-        .container { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .search-container { display: flex; gap: 10px; margin-bottom: 20px; }
-        input[type="text"] { flex: 1; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 16px; outline: none; }
-        input[type="text"]:focus { border-color: #007bff; }
-        button { padding: 12px 24px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
-        button:hover { background-color: #0056b3; }
-        .alert-banner { display: none; padding: 15px; margin-bottom: 20px; border-radius: 6px; font-weight: bold; font-size: 16px; }
-        .alert-danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .alert-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        #map { height: 480px; width: 100%; border-radius: 8px; border: 1px solid #ccc; margin-top: 15px; }
-        .details-card { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 15px; display: none; }
+        body { font-family: sans-serif; display: flex; margin: 0; height: 100vh; }
+        .main-panel { flex: 3; padding: 20px; }
+        .alert-sidebar { flex: 1; background: #1e293b; color: white; padding: 15px; overflow-y: auto; border-left: 2px solid #334155; }
+        #map { height: 500px; width: 100%; border-radius: 8px; }
+        .alert-card { background: #0f172a; border-left: 5px solid #ef4444; padding: 12px; margin-bottom: 10px; border-radius: 4px; cursor: pointer; }
+        .alert-card:hover { background: #334155; }
+        .alert-title { font-weight: bold; color: #f87171; }
+        .alert-time { font-size: 12px; color: #94a3b8; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>🚘 ANPR Vehicle Route Tracer</h2>
-    
-    <div class="search-container">
-        <input type="text" id="vehicleQuery" placeholder="Enter Vehicle ID (e.g. TG01AB1234)..." />
-        <button onclick="fetchAndRenderRoute()">Search & Trace</button>
-    </div>
-
-    <!-- Dynamic Status / Alert Banner -->
-    <div id="alertBanner" class="alert-banner"></div>
-
-    <!-- Route Information Metadata -->
-    <div id="detailsCard" class="details-card"></div>
-
-    <!-- Map Canvas -->
+<div class="main-panel">
+    <h2>🚘 ANPR Real-time Tracking Panel</h2>
     <div id="map"></div>
 </div>
 
-<!-- Leaflet JS for Map -->
+<div class="alert-sidebar">
+    <h3>🚨 Live Vehicle Alerts</h3>
+    <div id="alertContainer">
+        <!-- Live alerts appended here dynamically -->
+    </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Socket.io Library -->
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
 <script>
     const API_BASE_URL = "https://sirius-the-star.onrender.com";
+    
+    // Connect to Backend WebSocket
+    const socket = io(API_BASE_URL);
 
-    // Initialize map default view
+    // Leaflet Setup
     let map = L.map('map').setView([17.4483, 78.3915], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     let layerGroup = L.layerGroup().addTo(map);
 
-    async function fetchAndRenderRoute() {
-        const queryInput = document.getElementById("vehicleQuery").value.trim();
-        const alertBanner = document.getElementById("alertBanner");
-        const detailsCard = document.getElementById("detailsCard");
+    // Listen for incoming WebSocket alerts
+    socket.on('new_blacklist_alert', (alert) => {
+        addAlertToFeed(alert);
+    });
 
-        if (!queryInput) return;
+    function addAlertToFeed(alert) {
+        const container = document.getElementById("alertContainer");
+        const card = document.createElement("div");
+        card.className = "alert-card";
+        
+        card.innerHTML = `
+            <div class="alert-title">🚨 ${alert.vehicle_id}</div>
+            <div><strong>Reason:</strong> ${alert.reason}</div>
+            <div><strong>Cam ID:</strong> ${alert.location.cam_id}</div>
+            <div class="alert-time">${new Date(alert.timestamp).toLocaleTimeString()}</div>
+        `;
 
-        // Reset UI components
-        alertBanner.style.display = "none";
-        detailsCard.style.display = "none";
+        // Click alert card to query full historical path from database and plot on Leaflet
+        card.onclick = () => fetchAndPlotPath(alert.vehicle_id);
+
+        container.prepend(card);
+    }
+
+    async function fetchAndPlotPath(vehicleId) {
         layerGroup.clearLayers();
+        const response = await fetch(`${API_BASE_URL}/api/track?vehicle_id=${vehicleId}`);
+        const result = await response.json();
 
-        try {
-            // Fetch trail data processed by Flask on Render
-            const response = await fetch(`${API_BASE_URL}/api/track?vehicle_id=${encodeURIComponent(queryInput)}`);
-            const result = await response.json();
-
-            if (!result.success) {
-                alertBanner.className = "alert-banner alert-danger";
-                alertBanner.innerText = result.message || "Vehicle record not found.";
-                alertBanner.style.display = "block";
-                return;
-            }
-
-            const payload = result.data;
-
-            // 1. Display Alert Signal Banner
-            if (payload.is_blacklisted) {
-                alertBanner.className = "alert-banner alert-danger";
-                alertBanner.innerHTML = `🚨 ALERT: Blacklisted Vehicle Match! <br><small>Reason: ${payload.blacklist_reason}</small>`;
-            } else {
-                alertBanner.className = "alert-banner alert-success";
-                alertBanner.innerText = `✅ NO ALERT: Vehicle ${payload.vehicle_id} is clear.`;
-            }
-            alertBanner.style.display = "block";
-
-            // 2. Render Details Card
-            detailsCard.innerHTML = `
-                <strong>Vehicle ID:</strong> ${payload.vehicle_id} &nbsp;|&nbsp; 
-                <strong>Total Sightings:</strong> ${payload.total_detections}<br>
-                <strong>First Occurrence:</strong> ${new Date(payload.first_occurrence.time_stamp).toLocaleString()} (Cam ${payload.first_occurrence.cam_id})<br>
-                <strong>Last Occurrence:</strong> ${new Date(payload.last_occurrence.time_stamp).toLocaleString()} (Cam ${payload.last_occurrence.cam_id})
-            `;
-            detailsCard.style.display = "block";
-
-            // 3. Draw Path & Camera Markers on Map
-            const routeCoordinates = [];
-            payload.trail.forEach((spot, index) => {
-                if (spot.latitude && spot.longitude) {
-                    const point = [spot.latitude, spot.longitude];
-                    routeCoordinates.push(point);
-
-                    // Add markers for camera hit points
-                    L.marker(point)
-                     .bindPopup(`<b>Hit #${index + 1}</b><br>Camera ID: ${spot.cam_id}<br>Time: ${new Date(spot.time_stamp).toLocaleString()}`)
-                     .addTo(layerGroup);
-                }
+        if (result.success) {
+            const coords = [];
+            result.data.trail.forEach((spot, idx) => {
+                const point = [spot.latitude, spot.longitude];
+                coords.push(point);
+                L.marker(point).bindPopup(`Cam ${spot.cam_id}<br>${spot.time_stamp}`).addTo(layerGroup);
             });
 
-            // 4. Draw connecting Polyline path
-            if (routeCoordinates.length > 0) {
-                const pathColor = payload.is_blacklisted ? '#dc3545' : '#007bff';
-                const polyline = L.polyline(routeCoordinates, { color: pathColor, weight: 4 }).addTo(layerGroup);
+            if (coords.length > 0) {
+                const polyline = L.polyline(coords, { color: '#ef4444', weight: 4 }).addTo(layerGroup);
                 map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
             }
-
-        } catch (error) {
-            alertBanner.className = "alert-banner alert-danger";
-            alertBanner.innerText = "Error communicating with the backend server.";
-            alertBanner.style.display = "block";
         }
     }
 </script>
-
 </body>
 </html>
