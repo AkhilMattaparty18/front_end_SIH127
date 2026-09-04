@@ -1,91 +1,554 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>ANPR Control Center - Real-time Alerts</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        body { font-family: sans-serif; display: flex; margin: 0; height: 100vh; }
-        .main-panel { flex: 3; padding: 20px; }
-        .alert-sidebar { flex: 1; background: #1e293b; color: white; padding: 15px; overflow-y: auto; border-left: 2px solid #334155; }
-        #map { height: 500px; width: 100%; border-radius: 8px; }
-        .alert-card { background: #0f172a; border-left: 5px solid #ef4444; padding: 12px; margin-bottom: 10px; border-radius: 4px; cursor: pointer; }
-        .alert-card:hover { background: #334155; }
-        .alert-title { font-weight: bold; color: #f87171; }
-        .alert-time { font-size: 12px; color: #94a3b8; }
-    </style>
-</head>
-<body>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>SIRIUS Command Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
-<div class="main-panel">
-    <h2>🚘 ANPR Real-time Tracking Panel</h2>
-    <div id="map"></div>
-</div>
-
-<div class="alert-sidebar">
-    <h3>🚨 Live Vehicle Alerts</h3>
-    <div id="alertContainer">
-        <!-- Live alerts appended here dynamically -->
-    </div>
-</div>
-
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- Socket.io Library -->
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+<style>
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0d1c2d; }
+  ::-webkit-scrollbar-thumb { background: #273647; }
+  ::-webkit-scrollbar-thumb:hover { background: #404a59; }
+  
+  /* High-Tech Dark Mode Filter for Map Tiles */
+  .dark-map .leaflet-tile-container img {
+    filter: invert(100%) hue-rotate(180deg) brightness(90%) contrast(90%) !important;
+  }
+  .leaflet-container {
+    background: #051424 !important;
+  }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background: #0d1c2d !important;
+    color: #d4e4fa !important;
+    border: 1px solid #424754;
+    font-family: monospace;
+    font-size: 11px;
+  }
+
+  /* Pulse Animation for Live Indicators */
+  @keyframes pulse-ring {
+    0% { transform: scale(0.95); opacity: 0.8; }
+    50% { transform: scale(1.3); opacity: 0.3; }
+    100% { transform: scale(0.95); opacity: 0.8; }
+  }
+  .animate-pulse-ring {
+    animation: pulse-ring 2s infinite ease-in-out;
+  }
+
+  /* Custom Leaflet Map Markers */
+  .custom-node-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #00285d;
+    color: #4d8eff;
+    border: 2px solid #4d8eff;
+    border-radius: 50%;
+    font-family: monospace;
+    font-weight: bold;
+    font-size: 11px;
+    box-shadow: 0 0 10px rgba(77, 142, 255, 0.5);
+  }
+  .custom-node-marker.critical {
+    background: #4a0e17;
+    color: #ffb4ab;
+    border-color: #ffb4ab;
+    box-shadow: 0 0 10px rgba(255, 180, 171, 0.6);
+  }
+  .directional-arrow {
+    color: #4d8eff;
+    font-size: 14px;
+    line-height: 1;
+    text-shadow: 0 0 4px #051424;
+  }
+</style>
+</head>
+<body class="bg-[#051424] text-[#d4e4fa] h-screen overflow-hidden flex font-sans antialiased">
+
+<nav class="w-[224px] h-screen fixed left-0 top-0 border-r border-[#424754] bg-[#0d1c2d] flex flex-col py-4 z-20">
+  <div class="px-4 mb-6 flex items-center gap-2">
+    <div class="w-8 h-8 bg-[#4d8eff] flex items-center justify-center rounded">
+      <span class="material-symbols-outlined text-[#00285d] text-[20px]">radar</span>
+    </div>
+    <div>
+      <h1 class="text-[16px] leading-tight text-[#d4e4fa] tracking-tight font-bold">SIRIUS</h1>
+    </div>
+  </div>
+
+  <div class="flex-1 overflow-y-auto px-2 space-y-1">
+    <button onclick="switchTab('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-2 px-3 py-2 bg-[#4d8eff] text-[#00285d] font-bold border-l-4 border-[#adc6ff] transition-all">
+      <span class="material-symbols-outlined text-[18px]">dashboard</span>
+      <span class="text-[11px] uppercase tracking-wider">Dashboard</span>
+    </button>
+    <button onclick="switchTab('anpr')" id="nav-anpr" class="w-full flex items-center gap-2 px-3 py-2 text-[#c2c6d6] opacity-70 hover:bg-[#273647] hover:text-[#d4e4fa] transition-all border-l-4 border-transparent">
+      <span class="material-symbols-outlined text-[18px]">directions_car</span>
+      <span class="text-[11px] uppercase tracking-wider truncate">ANPR & Vehicle Search</span>
+    </button>
+    <button onclick="switchTab('analytics')" id="nav-analytics" class="w-full flex items-center gap-2 px-3 py-2 text-[#c2c6d6] opacity-70 hover:bg-[#273647] hover:text-[#d4e4fa] transition-all border-l-4 border-transparent">
+      <span class="material-symbols-outlined text-[18px]">analytics</span>
+      <span class="text-[11px] uppercase tracking-wider">Analytics</span>
+    </button>
+    <button onclick="switchTab('alerts')" id="nav-alerts" class="w-full flex items-center gap-2 px-3 py-2 text-[#c2c6d6] opacity-70 hover:bg-[#273647] hover:text-[#d4e4fa] transition-all border-l-4 border-transparent">
+      <span class="material-symbols-outlined text-[18px]">warning</span>
+      <span class="text-[11px] uppercase tracking-wider flex-1 text-left">Alerts</span>
+    </button>
+  </div>
+</nav>
+
+<main class="ml-[224px] flex-1 flex flex-col h-screen bg-[#051424] relative overflow-hidden">
+
+  <section id="tab-dashboard" class="flex-1 flex flex-col p-3 gap-3 overflow-hidden relative z-10">
+    <div class="grid gap-3 h-[72px] shrink-0 grid-cols-4 w-full">
+      <div class="bg-[#0d1c2d] border border-[#424754] p-3 flex flex-col justify-between">
+        <div class="flex justify-between items-start">
+          <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse-ring inline-block"></span> Active Cameras
+          </span>
+          <span class="material-symbols-outlined text-[#adc6ff] text-[16px]">videocam</span>
+        </div>
+        <div class="font-mono text-[20px] text-[#adc6ff] font-semibold leading-none mt-1">1,248 <span class="text-[10px] text-[#c2c6d6] font-normal">/ 1,300</span></div>
+      </div>
+      <div class="bg-[#0d1c2d] border border-[#424754] p-3 flex flex-col justify-between">
+        <div class="flex justify-between items-start">
+          <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider">Vehicles Detected</span>
+          <span class="material-symbols-outlined text-[#bdc7d9] text-[16px]">directions_car</span>
+        </div>
+        <div class="font-mono text-[20px] text-[#adc6ff] font-semibold leading-none mt-1">42,890 <span class="text-[10px] text-[#adc6ff] font-normal">↑ 12%</span></div>
+      </div>
+      <div class="bg-[#0d1c2d] border border-[#424754] p-3 flex flex-col justify-between">
+        <div class="flex justify-between items-start">
+          <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider">ANPR Reads</span>
+          <span class="material-symbols-outlined text-[#bdc7d9] text-[16px]">center_focus_strong</span>
+        </div>
+        <div class="font-mono text-[20px] text-[#adc6ff] font-semibold leading-none mt-1">104,203 <span class="text-[10px] text-[#c2c6d6] font-normal">TODAY</span></div>
+      </div>
+      <div class="bg-[#0d1c2d] border border-[#ffb4ab]/40 p-3 flex flex-col justify-between relative overflow-hidden">
+        <div class="absolute left-0 top-0 bottom-0 w-1 bg-[#ffb4ab]"></div>
+        <div class="flex justify-between items-start pl-2">
+          <span class="text-[10px] text-[#ffb4ab] uppercase tracking-wider font-bold">Active Alerts</span>
+          <span class="material-symbols-outlined text-[#ffb4ab] text-[16px]">warning</span>
+        </div>
+        <div class="font-mono text-[20px] text-[#adc6ff] font-semibold leading-none mt-1 pl-2">14 <span class="text-[10px] text-[#ffb4ab] font-normal">3 CRITICAL</span></div>
+      </div>
+    </div>
+
+    <div class="flex-1 min-h-0 bg-[#051424] border border-[#424754] overflow-hidden">
+      <div id="dashboard-map" class="w-full h-full dark-map"></div>
+    </div>
+
+    <div class="h-[200px] shrink-0 bg-[#0d1c2d] border border-[#424754] flex flex-col overflow-hidden">
+      <div class="px-3 py-2 border-b border-[#424754] bg-[#273647] flex justify-between items-center">
+        <h3 class="text-[11px] text-[#d4e4fa] uppercase tracking-wider font-bold flex items-center gap-2">
+          <span class="material-symbols-outlined text-[14px] text-[#adc6ff]">center_focus_strong</span>
+          Recent ANPR Activity
+        </h3>
+      </div>
+      <div class="overflow-auto flex-1">
+        <table class="w-full text-left border-collapse font-mono text-[11px]">
+          <thead class="sticky top-0 bg-[#122131] border-b border-[#424754] text-[#c2c6d6] uppercase text-[10px]">
+            <tr>
+              <th class="py-2.5 px-3">Timestamp</th>
+              <th class="py-2.5 px-3">Plate</th>
+              <th class="py-2.5 px-3">Camera</th>
+              <th class="py-2.5 px-3">Coordinates</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="hover:bg-[#122131] border-b border-[#424754]/50 even:bg-[#081726]"><td class="py-2 px-3">14:22:04.120</td><td class="py-2 px-3 text-[#adc6ff] font-bold">AP09CD5678</td><td class="py-2 px-3">CN-102</td><td class="py-2 px-3">17.4325° N, 78.4071° E</td></tr>
+            <tr class="hover:bg-[#122131] border-b border-[#424754]/50 even:bg-[#081726]"><td class="py-2 px-3">14:21:48.090</td><td class="py-2 px-3 font-bold">TS07EH9012</td><td class="py-2 px-3">CN-045</td><td class="py-2 px-3">17.4311° N, 78.4085° E</td></tr>
+            <tr class="bg-[#ffb4ab]/10 border-b border-[#424754]/50 border-l-2 border-l-[#ffb4ab]"><td class="py-2 px-3 text-[#ffb4ab]">14:20:12.005</td><td class="py-2 px-3 font-bold text-[#ffb4ab]">TS09AB1234</td><td class="py-2 px-3">CN-218</td><td class="py-2 px-3 text-[#ffb4ab]">17.4435° N, 78.3772° E</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-anpr" class="hidden flex-1 flex flex-col p-3 gap-3 overflow-hidden">
+    <div id="anpr-alert-banner" class="hidden bg-[#4a0e17] border border-[#ffb4ab] text-[#ffb4ab] px-3 py-2 text-xs flex justify-between items-center shrink-0">
+      <span class="flex items-center gap-2 font-mono">
+        <span class="material-symbols-outlined text-sm">warning</span>
+        <span id="anpr-alert-message">No tracking data found for target query.</span>
+      </span>
+      <button onclick="hideANPRBanner()" class="text-[#ffb4ab] hover:text-white font-bold">✕</button>
+    </div>
+
+    <div class="bg-[#0d1c2d] border border-[#424754] p-3 flex gap-3 items-center shrink-0">
+      <span class="material-symbols-outlined text-[#adc6ff]">search</span>
+      <div class="relative flex-1 flex items-center">
+        <input type="text" id="anpr-search-input" onkeydown="if(event.key==='Enter') performANPRSearch()" placeholder="Enter License Plate (e.g. AP09CD5678, TS09AB1234)..." class="w-full bg-[#122131] border border-[#424754] pl-3 pr-8 py-2 text-sm text-[#d4e4fa] focus:outline-none focus:border-[#4d8eff] font-mono uppercase" />
+        <button onclick="clearANPRSearch()" class="absolute right-2 text-[#c2c6d6] hover:text-white font-bold text-xs">✕</button>
+      </div>
+      <button onclick="performANPRSearch()" class="bg-[#4d8eff] text-[#00285d] font-bold px-5 py-2 text-xs uppercase tracking-wider hover:bg-[#adc6ff] transition-all">Search Path</button>
+    </div>
+
+    <div class="flex-1 flex gap-3 min-h-0">
+      <div class="flex-1 bg-[#051424] border border-[#424754] relative overflow-hidden">
+        <div id="anpr-map" class="w-full h-full dark-map"></div>
+      </div>
+
+      <div class="w-[340px] bg-[#0d1c2d] border border-[#424754] flex flex-col shrink-0 overflow-hidden">
+        <div class="px-3 py-2 bg-[#273647] border-b border-[#424754] flex justify-between items-center">
+          <span class="text-[11px] font-bold uppercase tracking-wider">Tracked Vehicle Logs</span>
+          <span id="anpr-plate-tag" class="font-mono text-xs text-[#adc6ff] font-bold">NO QUERY</span>
+        </div>
+        <div id="anpr-path-list" class="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-xs">
+          <p class="text-[#c2c6d6] italic text-center mt-10">Search a license plate above to plot the vehicle's historical route and time logs.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-analytics" class="hidden flex-1 flex flex-col p-3 gap-3 overflow-hidden">
+    <div class="flex-1 flex gap-3 min-h-0">
+      <div class="flex-1 bg-[#051424] border border-[#424754] relative overflow-hidden flex flex-col">
+        <div class="p-2 bg-[#273647] border-b border-[#424754] text-[11px] font-bold uppercase tracking-wider flex items-center justify-between">
+          <span>Live City Traffic & Flow Map</span>
+          <span class="text-[10px] text-[#adc6ff] font-normal flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-[#4d8eff] animate-pulse-ring inline-block"></span> Interactive Camera Junctions
+          </span>
+        </div>
+        <div id="analytics-map" class="flex-1 dark-map"></div>
+      </div>
+
+      <div class="w-[340px] bg-[#0d1c2d] border border-[#424754] flex flex-col shrink-0 overflow-hidden">
+        <div class="px-3 py-2 bg-[#273647] border-b border-[#424754]">
+          <span class="text-[11px] font-bold uppercase tracking-wider">Junction / Camera Metrics</span>
+        </div>
+        
+        <div class="p-3 border-b border-[#424754] bg-[#122131]">
+          <label class="text-[10px] text-[#c2c6d6] uppercase tracking-wider block mb-1">Select Camera Junction</label>
+          <select id="camera-selector" onchange="updateCameraAnalytics(this.value)" class="w-full bg-[#0d1c2d] border border-[#424754] text-xs font-mono p-2 text-[#d4e4fa] focus:outline-none focus:border-[#4d8eff]">
+            <option value="CN-102">Camera CN-102 (Film Nagar Junction)</option>
+            <option value="CN-045">Camera CN-045 (Jubilee Checkpost)</option>
+            <option value="CN-218">Camera CN-218 (Madhapur Main Rd)</option>
+            <option value="CN-088">Camera CN-088 (Gachibowli Circle)</option>
+          </select>
+        </div>
+
+        <div class="flex-1 p-4 space-y-4 overflow-y-auto">
+          <div class="bg-[#051424] p-3 border border-[#424754]">
+            <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider">Average Traffic Speed</span>
+            <div id="analytics-speed" class="text-2xl font-mono font-bold text-[#adc6ff] mt-1">38 km/h</div>
+            <p class="text-[10px] text-[#c2c6d6] mt-1">Status: <span id="analytics-speed-status" class="text-yellow-400">Moderate Traffic</span></p>
+          </div>
+
+          <div class="bg-[#051424] p-3 border border-[#424754]">
+            <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider">Vehicles Detected (Last Hour)</span>
+            <div id="analytics-count" class="text-2xl font-mono font-bold text-[#adc6ff] mt-1">1,240</div>
+            <p class="text-[10px] text-[#c2c6d6] mt-1">Peak Density: <span class="text-yellow-400">78% Capacity</span></p>
+          </div>
+
+          <div class="bg-[#051424] p-3 border border-[#424754]">
+            <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider">Vehicle Class Distribution</span>
+            <div class="mt-2 space-y-2 text-xs font-mono">
+              <div><div class="flex justify-between text-[10px]"><span>Sedan/Hatchback</span><span>58%</span></div><div class="w-full bg-[#273647] h-1.5 mt-0.5"><div class="bg-[#4d8eff] h-1.5" style="width: 58%"></div></div></div>
+              <div><div class="flex justify-between text-[10px]"><span>SUVs / Commercial</span><span>28%</span></div><div class="w-full bg-[#273647] h-1.5 mt-0.5"><div class="bg-[#adc6ff] h-1.5" style="width: 28%"></div></div></div>
+              <div><div class="flex justify-between text-[10px]"><span>Two-Wheelers</span><span>14%</span></div><div class="w-full bg-[#273647] h-1.5 mt-0.5"><div class="bg-yellow-500 h-1.5" style="width: 14%"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-alerts" class="hidden flex-1 flex flex-col p-3 gap-3 overflow-hidden">
+    <div class="h-[180px] shrink-0 overflow-x-auto flex gap-3 pb-2">
+      <div onclick="selectAlertVehicle('TS09AB1234')" id="card-TS09AB1234" class="w-[280px] shrink-0 bg-[#0d1c2d] border-2 border-[#ffb4ab] p-3 flex flex-col justify-between cursor-pointer hover:bg-[#122131] transition-all">
+        <div class="flex justify-between items-start">
+          <span class="font-mono text-sm font-bold text-[#ffb4ab]">TS09AB1234</span>
+          <span class="bg-[#ffb4ab]/20 text-[#ffb4ab] text-[9px] px-2 py-0.5 font-bold uppercase border border-[#ffb4ab]/40">CRITICAL</span>
+        </div>
+        <div class="my-1">
+          <p class="text-[10px] text-[#c2c6d6] uppercase">Alert Reason</p>
+          <p class="text-xs font-bold text-red-400">Reported Stolen / Vehicle Theft</p>
+        </div>
+        <div class="text-[10px] font-mono text-[#c2c6d6] flex justify-between pt-2 border-t border-[#424754]">
+          <span>CN-218 (Madhapur)</span>
+          <span>14:20:01</span>
+        </div>
+      </div>
+
+      <div onclick="selectAlertVehicle('AP09CD5678')" id="card-AP09CD5678" class="w-[280px] shrink-0 bg-[#0d1c2d] border border-[#424754] p-3 flex flex-col justify-between cursor-pointer hover:bg-[#122131] transition-all">
+        <div class="flex justify-between items-start">
+          <span class="font-mono text-sm font-bold text-[#adc6ff]">AP09CD5678</span>
+          <span class="bg-yellow-500/20 text-yellow-400 text-[9px] px-2 py-0.5 font-bold uppercase border border-yellow-500/30">HIGH</span>
+        </div>
+        <div class="my-1">
+          <p class="text-[10px] text-[#c2c6d6] uppercase">Alert Reason</p>
+          <p class="text-xs font-bold text-yellow-400">Crime Investigation Flag</p>
+        </div>
+        <div class="text-[10px] font-mono text-[#c2c6d6] flex justify-between pt-2 border-t border-[#424754]">
+          <span>CN-102 (Film Nagar)</span>
+          <span>14:22:04</span>
+        </div>
+      </div>
+
+      <div onclick="selectAlertVehicle('KA01AA0001')" id="card-KA01AA0001" class="w-[280px] shrink-0 bg-[#0d1c2d] border border-[#424754] p-3 flex flex-col justify-between cursor-pointer hover:bg-[#122131] transition-all">
+        <div class="flex justify-between items-start">
+          <span class="font-mono text-sm font-bold text-[#adc6ff]">KA01AA0001</span>
+          <span class="bg-blue-500/20 text-blue-400 text-[9px] px-2 py-0.5 font-bold uppercase border border-blue-500/30">MEDIUM</span>
+        </div>
+        <div class="my-1">
+          <p class="text-[10px] text-[#c2c6d6] uppercase">Alert Reason</p>
+          <p class="text-xs font-bold text-blue-300">Unpaid Fines (&gt; ₹25,000)</p>
+        </div>
+        <div class="text-[10px] font-mono text-[#c2c6d6] flex justify-between pt-2 border-t border-[#424754]">
+          <span>CN-088 (Gachibowli)</span>
+          <span>14:15:30</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex-1 flex gap-3 min-h-0">
+      <div class="flex-1 bg-[#051424] border border-[#424754] relative overflow-hidden">
+        <div id="alerts-map" class="w-full h-full dark-map"></div>
+      </div>
+
+      <div class="w-[340px] bg-[#0d1c2d] border border-[#424754] flex flex-col shrink-0 overflow-hidden">
+        <div class="px-3 py-2 bg-[#273647] border-b border-[#424754] flex justify-between items-center">
+          <span class="text-[11px] font-bold uppercase tracking-wider">Alert Movement Path</span>
+          <span id="alerts-plate-tag" class="font-mono text-xs text-[#ffb4ab] font-bold">TS09AB1234</span>
+        </div>
+        <div id="alerts-path-list" class="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-xs">
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
 
 <script>
-    const API_BASE_URL = "https://sirius-the-star.onrender.com";
-    
-    // Connect to Backend WebSocket
-    const socket = io(API_BASE_URL);
+  // Replace this URL with your actual deployed Render backend service domain
+  const API_BASE_URL = 'https://your-render-app-name.onrender.com';
 
-    // Leaflet Setup
-    let map = L.map('map').setView([17.4483, 78.3915], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    let layerGroup = L.layerGroup().addTo(map);
+  const freeTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const tileAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
-    // Listen for incoming WebSocket alerts
-    socket.on('new_blacklist_alert', (alert) => {
-        addAlertToFeed(alert);
+  const cameraData = {
+    "CN-102": { speed: "38 km/h", status: "Moderate Traffic", statusClass: "text-yellow-400", count: "1,240", lat: 17.4325, lng: 78.4071 },
+    "CN-045": { speed: "54 km/h", status: "Clear Road", statusClass: "text-green-400", count: "1,890", lat: 17.4311, lng: 78.4085 },
+    "CN-218": { speed: "18 km/h", status: "Heavy Congestion", statusClass: "text-red-400", count: "2,410", lat: 17.4435, lng: 78.3772 },
+    "CN-088": { speed: "42 km/h", status: "Normal Flow", statusClass: "text-green-400", count: "1,420", lat: 17.4298, lng: 78.4102 }
+  };
+
+  let maps = { dashboard: null, anpr: null, analytics: null, alerts: null };
+  let layers = { anprRoute: null, alertsRoute: null };
+  let activeTab = 'dashboard';
+
+  window.addEventListener('load', () => {
+    initDashboardMap();
+  });
+
+  window.addEventListener('resize', () => {
+    if (maps[activeTab]) {
+      maps[activeTab].invalidateSize();
+    }
+  });
+
+  function switchTab(tabId) {
+    activeTab = tabId;
+    ['dashboard', 'anpr', 'analytics', 'alerts'].forEach(t => {
+      document.getElementById(`tab-${t}`).classList.add('hidden');
+      const navBtn = document.getElementById(`nav-${t}`);
+      navBtn.classList.remove('bg-[#4d8eff]', 'text-[#00285d]', 'font-bold', 'border-[#adc6ff]');
+      navBtn.classList.add('text-[#c2c6d6]', 'opacity-70', 'border-transparent');
     });
 
-    function addAlertToFeed(alert) {
-        const container = document.getElementById("alertContainer");
-        const card = document.createElement("div");
-        card.className = "alert-card";
-        
-        card.innerHTML = `
-            <div class="alert-title">🚨 ${alert.vehicle_id}</div>
-            <div><strong>Reason:</strong> ${alert.reason}</div>
-            <div><strong>Cam ID:</strong> ${alert.location.cam_id}</div>
-            <div class="alert-time">${new Date(alert.timestamp).toLocaleTimeString()}</div>
-        `;
+    const activeNav = document.getElementById(`nav-${tabId}`);
+    activeNav.classList.add('bg-[#4d8eff]', 'text-[#00285d]', 'font-bold', 'border-[#adc6ff]');
+    activeNav.classList.remove('text-[#c2c6d6]', 'opacity-70', 'border-transparent');
 
-        // Click alert card to query full historical path from database and plot on Leaflet
-        card.onclick = () => fetchAndPlotPath(alert.vehicle_id);
+    const activeSection = document.getElementById(`tab-${tabId}`);
+    activeSection.classList.remove('hidden');
 
-        container.prepend(card);
+    setTimeout(() => {
+      if (tabId === 'dashboard' && !maps.dashboard) initDashboardMap();
+      if (tabId === 'anpr') {
+        if (!maps.anpr) initANPRMap();
+        maps.anpr.invalidateSize();
+      }
+      if (tabId === 'analytics') {
+        if (!maps.analytics) initAnalyticsMap();
+        maps.analytics.invalidateSize();
+      }
+      if (tabId === 'alerts') {
+        if (!maps.alerts) initAlertsMap();
+        maps.alerts.invalidateSize();
+      }
+    }, 100);
+  }
+
+  function initDashboardMap() {
+    maps.dashboard = L.map('dashboard-map').setView([17.4325, 78.4071], 13);
+    L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.dashboard);
+  }
+
+  function initANPRMap() {
+    maps.anpr = L.map('anpr-map').setView([17.4325, 78.4071], 13);
+    L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.anpr);
+  }
+
+  function showANPRBanner(msg) {
+    const banner = document.getElementById('anpr-alert-banner');
+    document.getElementById('anpr-alert-message').innerText = msg;
+    banner.classList.remove('hidden');
+  }
+
+  function hideANPRBanner() {
+    document.getElementById('anpr-alert-banner').classList.add('hidden');
+  }
+
+  function clearANPRSearch() {
+    document.getElementById('anpr-search-input').value = '';
+    hideANPRBanner();
+  }
+
+  async function performANPRSearch() {
+    hideANPRBanner();
+    const query = document.getElementById('anpr-search-input').value.trim().toUpperCase();
+    const plateTag = document.getElementById('anpr-plate-tag');
+    const pathList = document.getElementById('anpr-path-list');
+
+    if (!query) {
+      showANPRBanner("Please enter a valid license plate number to search.");
+      return;
     }
 
-    async function fetchAndPlotPath(vehicleId) {
-        layerGroup.clearLayers();
-        const response = await fetch(`${API_BASE_URL}/api/track?vehicle_id=${vehicleId}`);
-        const result = await response.json();
+    if (layers.anprRoute) maps.anpr.removeLayer(layers.anprRoute);
+    pathList.innerHTML = `<p class="text-[#adc6ff] italic text-center mt-10">Fetching live logs from server...</p>`;
 
-        if (result.success) {
-            const coords = [];
-            result.data.trail.forEach((spot, idx) => {
-                const point = [spot.latitude, spot.longitude];
-                coords.push(point);
-                L.marker(point).bindPopup(`Cam ${spot.cam_id}<br>${spot.time_stamp}`).addTo(layerGroup);
-            });
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/track?vehicle_id=${encodeURIComponent(query)}`);
+      const result = await response.json();
 
-            if (coords.length > 0) {
-                const polyline = L.polyline(coords, { color: '#ef4444', weight: 4 }).addTo(layerGroup);
-                map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
-            }
+      if (!response.ok || !result.success) {
+        showANPRBanner(result.message || `No tracking logs found for plate: ${query}`);
+        pathList.innerHTML = `<p class="text-[#c2c6d6] italic text-center mt-10">No tracking logs available.</p>`;
+        return;
+      }
+
+      const trailData = result.data;
+      plateTag.innerText = trailData.vehicle_id;
+
+      const points = trailData.trail.map(pt => ({
+        time: new Date(pt.time_stamp).toLocaleTimeString(),
+        cam: `Camera ${pt.cam_id}`,
+        lat: pt.latitude,
+        lng: pt.longitude
+      })).filter(pt => pt.lat !== null && pt.lng !== null);
+
+      if (points.length === 0) {
+        showANPRBanner("Logs found, but no geographic coordinates exist for these cameras.");
+        pathList.innerHTML = `<p class="text-[#c2c6d6] italic text-center mt-10">Missing spatial coordinate data.</p>`;
+        return;
+      }
+
+      layers.anprRoute = L.layerGroup().addTo(maps.anpr);
+
+      const latLngs = points.map(p => [p.lat, p.lng]);
+      const polyline = L.polyline(latLngs, { color: '#4d8eff', weight: 4, dashArray: '6, 6' }).addTo(layers.anprRoute);
+      
+      points.forEach((pt, index) => {
+        const isLast = index === points.length - 1;
+        const customIcon = L.divIcon({
+          className: `custom-node-marker ${isLast ? 'critical' : ''}`,
+          html: `<span>${index + 1}</span>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+
+        L.marker([pt.lat, pt.lng], { icon: customIcon })
+          .addTo(layers.anprRoute)
+          .bindPopup(`<b>Point ${index + 1}: ${pt.cam}</b><br>Time: ${pt.time}`);
+
+        if (index < points.length - 1) {
+          const nextPt = points[index + 1];
+          const midLat = (pt.lat + nextPt.lat) / 2;
+          const midLng = (pt.lng + nextPt.lng) / 2;
+          
+          const dx = nextPt.lng - pt.lng;
+          const dy = nextPt.lat - pt.lat;
+          const angle = Math.atan2(dx, dy) * (180 / Math.PI);
+          
+          const arrowIcon = L.divIcon({
+            className: 'directional-arrow',
+            html: `<span class="material-symbols-outlined" style="transform: rotate(${angle}deg); display: inline-block;">navigation</span>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+          });
+          L.marker([midLat, midLng], { icon: arrowIcon }).addTo(layers.anprRoute);
         }
+      });
+
+      maps.anpr.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+
+      pathList.innerHTML = `
+        ${trailData.is_blacklisted ? `
+          <div class="p-2 mb-2 bg-[#4a0e17] border border-[#ffb4ab] text-[#ffb4ab]">
+            <strong class="block text-[11px] font-bold">BLACKLISTED VEHICLE DETECTED</strong>
+            <span class="text-[10px]">Reason: ${trailData.blacklist_reason}</span>
+          </div>
+        ` : ''}
+        ` + points.map((pt, idx) => `
+          <div class="p-2 border-l-2 ${idx === points.length - 1 ? 'border-[#ffb4ab] bg-[#ffb4ab]/10' : 'border-[#4d8eff] bg-[#122131]'}">
+            <div class="flex justify-between font-bold text-[#d4e4fa]">
+              <span>Node ${idx + 1}: ${pt.cam}</span>
+            </div>
+            <div class="text-[10px] text-[#c2c6d6] mt-1">Timestamp: <span class="text-[#adc6ff]">${pt.time}</span></div>
+            <div class="text-[10px] text-[#c2c6d6]">Coords: ${pt.lat}° N, ${pt.lng}° E</div>
+          </div>
+        `).join('');
+
+    } catch (err) {
+      showANPRBanner("Failed to communicate with the backend on Render. Ensure service is active.");
+      pathList.innerHTML = `<p class="text-[#ffb4ab] italic text-center mt-10">Connection error.</p>`;
     }
+  }
+
+  function initAnalyticsMap() {
+    maps.analytics = L.map('analytics-map').setView([17.4325, 78.4071], 13);
+    L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.analytics);
+
+    Object.keys(cameraData).forEach(key => {
+      const cam = cameraData[key];
+      const camIcon = L.divIcon({
+        className: 'custom-node-marker',
+        html: `<span class="material-symbols-outlined text-[14px]">videocam</span>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+
+      L.marker([cam.lat, cam.lng], { icon: camIcon })
+        .addTo(maps.analytics)
+        .bindPopup(`<b>Camera ${key}</b><br>Avg Speed: ${cam.speed}`);
+    });
+  }
+
+  function updateCameraAnalytics(camKey) {
+    const data = cameraData[camKey];
+    if (!data) return;
+
+    document.getElementById('analytics-speed').innerText = data.speed;
+    document.getElementById('analytics-speed-status').innerText = data.status;
+    document.getElementById('analytics-speed-status').className = data.statusClass;
+    document.getElementById('analytics-count').innerText = data.count;
+
+    if (maps.analytics) {
+      maps.analytics.panTo([data.lat, data.lng]);
+    }
+  }
+
+  function initAlertsMap() {
+    maps.alerts = L.map('alerts-map').setView([17.4435, 78.3772], 13);
+    L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.alerts);
+  }
 </script>
 </body>
 </html>
