@@ -226,32 +226,38 @@
         <div class="p-3 border-b border-[#424754] bg-[#122131]">
           <label class="text-[10px] text-[#c2c6d6] uppercase tracking-wider block mb-1">Select Camera Junction</label>
           <select id="camera-selector" onchange="updateCameraAnalytics(this.value)" class="w-full bg-[#0d1c2d] border border-[#424754] text-xs font-mono p-2 text-[#d4e4fa] focus:outline-none focus:border-[#4d8eff]">
-            <option value="CN-102">Camera CN-102 (Film Nagar Junction)</option>
-            <option value="CN-045">Camera CN-045 (Jubilee Checkpost)</option>
-            <option value="CN-218">Camera CN-218 (Madhapur Main Rd)</option>
-            <option value="CN-088">Camera CN-088 (Gachibowli Circle)</option>
+            <option value="">Loading cameras...</option>
           </select>
         </div>
 
         <div class="flex-1 p-4 space-y-4 overflow-y-auto">
           <div class="bg-[#051424] p-3 border border-[#424754]">
             <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider">Average Traffic Speed</span>
-            <div id="analytics-speed" class="text-2xl font-mono font-bold text-[#adc6ff] mt-1">38 km/h</div>
-            <p class="text-[10px] text-[#c2c6d6] mt-1">Status: <span id="analytics-speed-status" class="text-yellow-400">Moderate Traffic</span></p>
+            <div id="analytics-speed" class="text-2xl font-mono font-bold text-[#adc6ff] mt-1">-- km/h</div>
+            <p class="text-[10px] text-[#c2c6d6] mt-1">Status: <span id="analytics-speed-status" class="text-yellow-400">Loading...</span></p>
           </div>
 
           <div class="bg-[#051424] p-3 border border-[#424754]">
-            <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider">Vehicles Detected (Last Hour)</span>
-            <div id="analytics-count" class="text-2xl font-mono font-bold text-[#adc6ff] mt-1">1,240</div>
-            <p class="text-[10px] text-[#c2c6d6] mt-1">Peak Density: <span class="text-yellow-400">78% Capacity</span></p>
+            <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider">Vehicles Detected (Last 1 Min)</span>
+            <div id="analytics-count" class="text-2xl font-mono font-bold text-[#adc6ff] mt-1">--</div>
+            <p class="text-[10px] text-[#c2c6d6] mt-1">Peak Density: <span id="analytics-capacity" class="text-yellow-400">--% Capacity</span></p>
           </div>
 
           <div class="bg-[#051424] p-3 border border-[#424754]">
             <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider">Vehicle Class Distribution</span>
             <div class="mt-2 space-y-2 text-xs font-mono">
-              <div><div class="flex justify-between text-[10px]"><span>Sedan/Hatchback</span><span>58%</span></div><div class="w-full bg-[#273647] h-1.5 mt-0.5"><div class="bg-[#4d8eff] h-1.5" style="width: 58%"></div></div></div>
-              <div><div class="flex justify-between text-[10px]"><span>SUVs / Commercial</span><span>28%</span></div><div class="w-full bg-[#273647] h-1.5 mt-0.5"><div class="bg-[#adc6ff] h-1.5" style="width: 28%"></div></div></div>
-              <div><div class="flex justify-between text-[10px]"><span>Two-Wheelers</span><span>14%</span></div><div class="w-full bg-[#273647] h-1.5 mt-0.5"><div class="bg-yellow-500 h-1.5" style="width: 14%"></div></div></div>
+              <div>
+                <div class="flex justify-between text-[10px]"><span>Sedan/Hatchback</span><span id="pct-sedan">0%</span></div>
+                <div class="w-full bg-[#273647] h-1.5 mt-0.5"><div id="bar-sedan" class="bg-[#4d8eff] h-1.5" style="width: 0%"></div></div>
+              </div>
+              <div>
+                <div class="flex justify-between text-[10px]"><span>SUVs / Commercial</span><span id="pct-suv">0%</span></div>
+                <div class="w-full bg-[#273647] h-1.5 mt-0.5"><div id="bar-suv" class="bg-[#adc6ff] h-1.5" style="width: 0%"></div></div>
+              </div>
+              <div>
+                <div class="flex justify-between text-[10px]"><span>Two-Wheelers</span><span id="pct-bike">0%</span></div>
+                <div class="w-full bg-[#273647] h-1.5 mt-0.5"><div id="bar-bike" class="bg-yellow-500 h-1.5" style="width: 0%"></div></div>
+              </div>
             </div>
           </div>
         </div>
@@ -285,21 +291,13 @@
 </main>
 
 <script>
-  // Backend URL configuration
   const API_BASE_URL = "https://sirius-the-star.onrender.com"; 
 
   const freeTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
   const tileAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
-  const cameraData = {
-    "CN-102": { speed: "38 km/h", status: "Moderate Traffic", statusClass: "text-yellow-400", count: "1,240", lat: 17.4325, lng: 78.4071 },
-    "CN-045": { speed: "54 km/h", status: "Clear Road", statusClass: "text-green-400", count: "1,890", lat: 17.4311, lng: 78.4085 },
-    "CN-218": { speed: "18 km/h", status: "Heavy Congestion", statusClass: "text-red-400", count: "2,410", lat: 17.4435, lng: 78.3772 },
-    "CN-088": { speed: "42 km/h", status: "Normal Flow", statusClass: "text-green-400", count: "1,420", lat: 17.4298, lng: 78.4102 }
-  };
-
   let maps = { dashboard: null, anpr: null, analytics: null, alerts: null };
-  let layers = { dashboardMarkers: null, anprRoute: null, alertsRoute: null };
+  let layers = { dashboardMarkers: null, anprRoute: null, alertsRoute: null, analyticsMarkers: null };
   let activeTab = 'dashboard';
   let cachedAlertsData = [];
 
@@ -345,6 +343,7 @@
       if (tabId === 'analytics') {
         if (!maps.analytics) initAnalyticsMap();
         maps.analytics.invalidateSize();
+        loadDynamicCameraDropdown();
       }
       if (tabId === 'alerts') {
         if (!maps.alerts) initAlertsMap();
@@ -554,38 +553,86 @@
   }
 
   /* -------------------------------------------------------------
-     ANALYTICS TAB LOGIC
+     DYNAMIC ANALYTICS TAB LOGIC (Connected to Mongo API)
   ------------------------------------------------------------- */
   function initAnalyticsMap() {
     maps.analytics = L.map('analytics-map').setView([17.4325, 78.4071], 13);
     L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.analytics);
-
-    Object.keys(cameraData).forEach(key => {
-      const cam = cameraData[key];
-      const camIcon = L.divIcon({
-        className: 'custom-node-marker',
-        html: `<span class="material-symbols-outlined text-[14px]">videocam</span>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
-      });
-
-      L.marker([cam.lat, cam.lng], { icon: camIcon })
-        .addTo(maps.analytics)
-        .bindPopup(`<b>Camera ${key}</b><br>Avg Speed: ${cam.speed}`);
-    });
+    layers.analyticsMarkers = L.layerGroup().addTo(maps.analytics);
   }
 
-  function updateCameraAnalytics(camKey) {
-    const data = cameraData[camKey];
-    if (!data) return;
+  async function loadDynamicCameraDropdown() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analytics/cameras`);
+      const result = await response.json();
 
-    document.getElementById('analytics-speed').innerText = data.speed;
-    document.getElementById('analytics-speed-status').innerText = data.status;
-    document.getElementById('analytics-speed-status').className = data.statusClass;
-    document.getElementById('analytics-count').innerText = data.count;
+      if (result.success && result.data.length > 0) {
+        const selector = document.getElementById('camera-selector');
+        selector.innerHTML = result.data.map(cam => 
+          `<option value="${cam.cam_id}">Camera ${cam.cam_id}</option>`
+        ).join('');
 
-    if (maps.analytics) {
-      maps.analytics.panTo([data.lat, data.lng]);
+        if (layers.analyticsMarkers) layers.analyticsMarkers.clearLayers();
+
+        result.data.forEach(cam => {
+          const camIcon = L.divIcon({
+            className: 'custom-node-marker',
+            html: `<span class="material-symbols-outlined text-[14px]">videocam</span>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+          });
+
+          if (cam.latitude && cam.longitude) {
+            L.marker([cam.latitude, cam.longitude], { icon: camIcon })
+              .addTo(layers.analyticsMarkers)
+              .bindPopup(`<b>Camera ${cam.cam_id}</b>`);
+          }
+        });
+
+        updateCameraAnalytics(result.data[0].cam_id);
+      } else {
+        document.getElementById('camera-selector').innerHTML = `<option value="">No cameras available</option>`;
+      }
+    } catch (err) {
+      console.error("Failed to load dynamic camera dropdown:", err);
+    }
+  }
+
+  async function updateCameraAnalytics(camId) {
+    if (!camId) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analytics/camera-metrics?cam_id=${encodeURIComponent(camId)}&time_window_minutes=1`);
+      const result = await response.json();
+
+      if (result.success) {
+        const data = result.data;
+
+        document.getElementById('analytics-speed').innerText = data.average_speed;
+        
+        const statusElem = document.getElementById('analytics-speed-status');
+        statusElem.innerText = data.status;
+        statusElem.className = data.status_class;
+
+        document.getElementById('analytics-count').innerText = data.vehicle_count.toLocaleString();
+        document.getElementById('analytics-capacity').innerText = `${data.capacity_percentage} Capacity`;
+
+        const dist = data.class_distribution;
+        const sedanPct = dist["Sedan/Hatchback"] || 0;
+        const suvPct = dist["SUVs / Commercial"] || 0;
+        const bikePct = dist["Two-Wheelers"] || 0;
+
+        document.getElementById('pct-sedan').innerText = `${sedanPct}%`;
+        document.getElementById('bar-sedan').style.width = `${sedanPct}%`;
+
+        document.getElementById('pct-suv').innerText = `${suvPct}%`;
+        document.getElementById('bar-suv').style.width = `${suvPct}%`;
+
+        document.getElementById('pct-bike').innerText = `${bikePct}%`;
+        document.getElementById('bar-bike').style.width = `${bikePct}%`;
+      }
+    } catch (err) {
+      console.error("Failed to update camera analytics:", err);
     }
   }
 
