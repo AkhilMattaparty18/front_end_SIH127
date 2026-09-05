@@ -539,54 +539,54 @@
     }
   }
 
-  async function loadDynamicCameraDropdown() {
-    const selector = document.getElementById('camera-selector');
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/analytics/cameras`);
-      const result = await response.json();
+async function loadDynamicCameraDropdown() {
+  const selector = document.getElementById('camera-selector');
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/analytics/cameras`);
+    const result = await response.json();
 
-      if (result.success && result.data && result.data.length > 0) {
-        selector.innerHTML = result.data.map(cam => 
-          `<option value="${cam.cam_id}">Camera ${cam.cam_id}</option>`
-        ).join('');
+    if (result.success && result.data && result.data.length > 0) {
+      selector.innerHTML = result.data.map(cam => 
+        `<option value="${cam.cam_id}">Camera ${cam.cam_id}</option>`
+      ).join('');
 
-        if (layers.analyticsMarkers) layers.analyticsMarkers.clearLayers();
+      if (layers.analyticsMarkers) layers.analyticsMarkers.clearLayers();
 
-        result.data.forEach(cam => {
-          if (cam.latitude && cam.longitude) {
-            const camIcon = L.divIcon({
-              className: 'custom-node-marker',
-              html: `<span class="material-symbols-outlined text-[14px]">videocam</span>`,
-              iconSize: [28, 28],
-              iconAnchor: [14, 14]
-            });
+      result.data.forEach(cam => {
+        if (cam.latitude && cam.longitude) {
+          const camIcon = L.divIcon({
+            className: 'custom-node-marker',
+            html: `<span class="material-symbols-outlined text-[14px]">videocam</span>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+          });
 
-            L.marker([cam.latitude, cam.longitude], { icon: camIcon })
-              .addTo(layers.analyticsMarkers)
-              .bindPopup(`<b>Camera ${cam.cam_id}</b>`);
-          }
-        });
-
-        const selectedCam = selector.value;
-        updateCameraAnalytics(selectedCam);
-
-        if (!analyticsInterval) {
-          analyticsInterval = setInterval(() => {
-            const currentCam = document.getElementById('camera-selector').value;
-            if (currentCam) updateCameraAnalytics(currentCam);
-          }, 10000);
+          L.marker([cam.latitude, cam.longitude], { icon: camIcon })
+            .addTo(layers.analyticsMarkers)
+            .bindPopup(`<b>Camera ${cam.cam_id}</b>`);
         }
-      } else {
-        selector.innerHTML = `<option value="CAM_01">Camera CAM_01 (Default)</option>`;
-        updateCameraAnalytics("CAM_01");
-      }
-    } catch (err) {
-      console.error("Failed to load camera dropdown:", err);
-      selector.innerHTML = `<option value="CAM_01">Camera CAM_01 (Fallback)</option>`;
-      updateCameraAnalytics("CAM_01");
-    }
-  }
+      });
 
+      const selectedCam = selector.value;
+      updateCameraAnalytics(selectedCam);
+
+      if (!analyticsInterval) {
+        analyticsInterval = setInterval(() => {
+          const currentCam = document.getElementById('camera-selector').value;
+          if (currentCam) updateCameraAnalytics(currentCam);
+        }, 10000);
+      }
+    } else {
+      // Changed fallback to camera ID "123" present in vehicle_logs/cameras collection
+      selector.innerHTML = `<option value="123">Camera 123 (Default)</option>`;
+      updateCameraAnalytics("123");
+    }
+  } catch (err) {
+    console.error("Failed to load camera dropdown:", err);
+    selector.innerHTML = `<option value="123">Camera 123 (Fallback)</option>`;
+    updateCameraAnalytics("123");
+  }
+}
   async function updateCameraAnalytics(camId) {
     if (!camId) return;
 
