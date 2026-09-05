@@ -294,50 +294,56 @@
   });
 
   function switchTab(tabId) {
-    activeTab = tabId;
-    if (analyticsInterval) {
-      clearInterval(analyticsInterval);
-      analyticsInterval = null;
+  activeTab = tabId;
+  if (analyticsInterval) {
+    clearInterval(analyticsInterval);
+    analyticsInterval = null;
+  }
+
+  ['dashboard', 'anpr', 'analytics', 'alerts'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.add('hidden');
+    const navBtn = document.getElementById(`nav-${t}`);
+    navBtn.classList.remove('bg-[#4d8eff]', 'text-[#00285d]', 'font-bold', 'border-[#adc6ff]');
+    navBtn.classList.add('text-[#c2c6d6]', 'opacity-70', 'border-transparent');
+  });
+
+  const activeNav = document.getElementById(`nav-${tabId}`);
+  activeNav.classList.add('bg-[#4d8eff]', 'text-[#00285d]', 'font-bold', 'border-[#adc6ff]');
+  activeNav.classList.remove('text-[#c2c6d6]', 'opacity-70', 'border-transparent');
+
+  const activeSection = document.getElementById(`tab-${tabId}`);
+  activeSection.classList.remove('hidden');
+
+  setTimeout(() => {
+    if (tabId === 'dashboard') {
+      if (!maps.dashboard) initDashboardMap();
+      maps.dashboard.invalidateSize();
+      fetchDashboardStats();
+      fetchRecentANPRActivity();
     }
+    if (tabId === 'anpr') {
+      if (!maps.anpr) initANPRMap();
+      maps.anpr.invalidateSize();
+    }
+    if (tabId === 'analytics') {
+      if (!maps.analytics) initAnalyticsMap();
+      maps.analytics.invalidateSize();
+      loadDynamicCameraDropdown();
+    }
+    if (tabId === 'alerts') {
+      if (!maps.alerts) initAlertsMap();
+      maps.alerts.invalidateSize();
+      fetchAllAlerts();
+    }
+  }, 200);
+}
 
-    ['dashboard', 'anpr', 'analytics', 'alerts'].forEach(t => {
-      document.getElementById(`tab-${t}`).classList.add('hidden');
-      const navBtn = document.getElementById(`nav-${t}`);
-      navBtn.classList.remove('bg-[#4d8eff]', 'text-[#00285d]', 'font-bold', 'border-[#adc6ff]');
-      navBtn.classList.add('text-[#c2c6d6]', 'opacity-70', 'border-transparent');
-    });
-
-    const activeNav = document.getElementById(`nav-${tabId}`);
-    activeNav.classList.add('bg-[#4d8eff]', 'text-[#00285d]', 'font-bold', 'border-[#adc6ff]');
-    activeNav.classList.remove('text-[#c2c6d6]', 'opacity-70', 'border-transparent');
-
-    const activeSection = document.getElementById(`tab-${tabId}`);
-    activeSection.classList.remove('hidden');
-
-    setTimeout(() => {
-      if (tabId === 'dashboard') {
-        if (!maps.dashboard) initDashboardMap();
-        maps.dashboard.invalidateSize();
-        fetchDashboardStats();
-        fetchRecentANPRActivity();
-      }
-      if (tabId === 'anpr') {
-        if (!maps.anpr) initANPRMap();
-        maps.anpr.invalidateSize();
-      }
-      if (tabId === 'analytics') {
-        if (!maps.analytics) initAnalyticsMap();
-        setTimeout(() => {
-          maps.analytics.invalidateSize();
-        }, 150);
-        loadDynamicCameraDropdown();
-      }
-      if (tabId === 'alerts') {
-        if (!maps.alerts) initAlertsMap();
-        maps.alerts.invalidateSize();
-        fetchAllAlerts();
-      }
-    }, 100);
+  function initDashboardMap() {
+    if (!maps.dashboard) {
+      maps.dashboard = L.map('dashboard-map').setView([17.4483, 78.3915], 12);
+      L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.dashboard);
+      layers.dashboardMarkers = L.layerGroup().addTo(maps.dashboard);
+    }
   }
 
   async function fetchDashboardStats() {
@@ -359,7 +365,7 @@
     try {
       const response = await fetch(`${API_BASE_URL}/api/dashboard/recent-activity`);
       const result = await response.json();
-      if (result.success) {
+      if (result.success && Array.isArray(result.data)) {
         renderRecentActivityTable(result.data);
         renderRecentActivityMapMarkers(result.data);
       }
@@ -391,11 +397,9 @@
 
   function renderRecentActivityMapMarkers(logs) {
     if (!maps.dashboard) return;
-    if (layers.dashboardMarkers) maps.dashboard.removeLayer(layers.dashboardMarkers);
+    if (layers.dashboardMarkers) layers.dashboardMarkers.clearLayers();
 
-    layers.dashboardMarkers = L.layerGroup().addTo(maps.dashboard);
     const bounds = [];
-
     logs.forEach(log => {
       if (log.latitude && log.longitude) {
         const markerIcon = L.divIcon({
@@ -420,8 +424,10 @@
   }
 
   function initANPRMap() {
-    maps.anpr = L.map('anpr-map').setView([17.4483, 78.3915], 12);
-    L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.anpr);
+    if (!maps.anpr) {
+      maps.anpr = L.map('anpr-map').setView([17.4483, 78.3915], 12);
+      L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.anpr);
+    }
   }
 
   function showANPRBanner(msg) {
@@ -513,15 +519,12 @@
   }
 
   function initAnalyticsMap() {
-  if (!maps.analytics) {
-    maps.analytics = L.map('analytics-map', {
-      center: [17.4325, 78.4071],
-      zoom: 13
-    });
-    L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.analytics);
-    layers.analyticsMarkers = L.layerGroup().addTo(maps.analytics);
+    if (!maps.analytics) {
+      maps.analytics = L.map('analytics-map').setView([17.4325, 78.4071], 13);
+      L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.analytics);
+      layers.analyticsMarkers = L.layerGroup().addTo(maps.analytics);
+    }
   }
-}
 
   async function loadDynamicCameraDropdown() {
     const selector = document.getElementById('camera-selector');
@@ -553,7 +556,6 @@
           }
         });
 
-        // Automatically load metrics for the first available camera
         const initialCamId = result.data[0].cam_id;
         selector.value = initialCamId;
         updateCameraAnalytics(initialCamId);
@@ -607,8 +609,10 @@
   }
 
   function initAlertsMap() {
-    maps.alerts = L.map('alerts-map').setView([17.4483, 78.3915], 12);
-    L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.alerts);
+    if (!maps.alerts) {
+      maps.alerts = L.map('alerts-map').setView([17.4483, 78.3915], 12);
+      L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.alerts);
+    }
   }
 
   async function fetchAllAlerts() {
