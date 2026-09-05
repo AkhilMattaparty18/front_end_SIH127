@@ -327,7 +327,9 @@
       }
       if (tabId === 'analytics') {
         if (!maps.analytics) initAnalyticsMap();
-        maps.analytics.invalidateSize();
+        setTimeout(() => {
+          maps.analytics.invalidateSize();
+        }, 150);
         loadDynamicCameraDropdown();
       }
       if (tabId === 'alerts') {
@@ -336,11 +338,6 @@
         fetchAllAlerts();
       }
     }, 100);
-  }
-
-  function initDashboardMap() {
-    maps.dashboard = L.map('dashboard-map').setView([17.4483, 78.3915], 12);
-    L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.dashboard);
   }
 
   async function fetchDashboardStats() {
@@ -516,12 +513,15 @@
   }
 
   function initAnalyticsMap() {
-    if (!maps.analytics) {
-      maps.analytics = L.map('analytics-map').setView([17.4325, 78.4071], 13);
-      L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.analytics);
-      layers.analyticsMarkers = L.layerGroup().addTo(maps.analytics);
-    }
+  if (!maps.analytics) {
+    maps.analytics = L.map('analytics-map', {
+      center: [17.4325, 78.4071],
+      zoom: 13
+    });
+    L.tileLayer(freeTileUrl, { attribution: tileAttribution }).addTo(maps.analytics);
+    layers.analyticsMarkers = L.layerGroup().addTo(maps.analytics);
   }
+}
 
   async function loadDynamicCameraDropdown() {
     const selector = document.getElementById('camera-selector');
