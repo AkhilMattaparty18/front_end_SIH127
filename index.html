@@ -491,22 +491,6 @@
           L.marker([pt.latitude, pt.longitude], { icon: customIcon })
             .addTo(layers.anprRoute)
             .bindPopup(`<b>Point ${index + 1}: Cam ${pt.cam_id}</b><br>Time: ${pt.time_stamp}`);
-
-          if (index < trail.length - 1) {
-            const nextPt = trail[index + 1];
-            if (nextPt.latitude && nextPt.longitude) {
-              const midLat = (pt.latitude + nextPt.latitude) / 2;
-              const midLng = (pt.longitude + nextPt.longitude) / 2;
-
-              const arrowIcon = L.divIcon({
-                className: 'directional-arrow',
-                html: '<span class="material-symbols-outlined">navigation</span>',
-                iconSize: [16, 16],
-                iconAnchor: [8, 8]
-              });
-              L.marker([midLat, midLng], { icon: arrowIcon }).addTo(layers.anprRoute);
-            }
-          }
         }
       });
 
@@ -539,77 +523,86 @@
     }
   }
 
-async function loadDynamicCameraDropdown() {
-  const selector = document.getElementById('camera-selector');
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/analytics/cameras`);
-    const result = await response.json();
+  async function loadDynamicCameraDropdown() {
+    const selector = document.getElementById('camera-selector');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analytics/cameras`);
+      if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+      
+      const result = await response.json();
 
-    if (result.success && result.data && result.data.length > 0) {
-      selector.innerHTML = result.data.map(cam => 
-        `<option value="${cam.cam_id}">Camera ${cam.cam_id}</option>`
-      ).join('');
+      if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+        selector.innerHTML = result.data.map(cam => 
+          `<option value="${cam.cam_id}">Camera ${cam.cam_id}</option>`
+        ).join('');
 
-      if (layers.analyticsMarkers) layers.analyticsMarkers.clearLayers();
+        if (layers.analyticsMarkers) layers.analyticsMarkers.clearLayers();
 
-      result.data.forEach(cam => {
-        if (cam.latitude && cam.longitude) {
-          const camIcon = L.divIcon({
-            className: 'custom-node-marker',
-            html: `<span class="material-symbols-outlined text-[14px]">videocam</span>`,
-            iconSize: [28, 28],
-            iconAnchor: [14, 14]
-          });
+        result.data.forEach(cam => {
+          if (cam.latitude && cam.longitude) {
+            const camIcon = L.divIcon({
+              className: 'custom-node-marker',
+              html: `<span class="material-symbols-outlined text-[14px]">videocam</span>`,
+              iconSize: [28, 28],
+              iconAnchor: [14, 14]
+            });
 
-          L.marker([cam.latitude, cam.longitude], { icon: camIcon })
-            .addTo(layers.analyticsMarkers)
-            .bindPopup(`<b>Camera ${cam.cam_id}</b>`);
+            L.marker([cam.latitude, cam.longitude], { icon: camIcon })
+              .addTo(layers.analyticsMarkers)
+              .bindPopup(`<b>Camera ${cam.cam_id}</b>`);
+          }
+        });
+
+        // Automatically load metrics for the first available camera
+        const initialCamId = result.data[0].cam_id;
+        selector.value = initialCamId;
+        updateCameraAnalytics(initialCamId);
+
+        if (!analyticsInterval) {
+          analyticsInterval = setInterval(() => {
+            const currentCam = document.getElementById('camera-selector').value;
+            if (currentCam) updateCameraAnalytics(currentCam);
+          }, 10000);
         }
-      });
-
-      const selectedCam = selector.value;
-      updateCameraAnalytics(selectedCam);
-
-      if (!analyticsInterval) {
-        analyticsInterval = setInterval(() => {
-          const currentCam = document.getElementById('camera-selector').value;
-          if (currentCam) updateCameraAnalytics(currentCam);
-        }, 10000);
+      } else {
+        selector.innerHTML = `<option value="123">Camera 123 (Default)</option>`;
+        updateCameraAnalytics("123");
       }
-    } else {
-      // Changed fallback to camera ID "123" present in vehicle_logs/cameras collection
-      selector.innerHTML = `<option value="123">Camera 123 (Default)</option>`;
+    } catch (err) {
+      console.error("Failed to load camera dropdown:", err);
+      selector.innerHTML = `<option value="123">Camera 123 (Fallback)</option>`;
       updateCameraAnalytics("123");
     }
-  } catch (err) {
-    console.error("Failed to load camera dropdown:", err);
-    selector.innerHTML = `<option value="123">Camera 123 (Fallback)</option>`;
-    updateCameraAnalytics("123");
   }
-}
+
   async function updateCameraAnalytics(camId) {
     if (!camId) return;
 
+    const statusElem = document.getElementById('analytics-speed-status');
+    statusElem.innerText = 'Loading...';
+    statusElem.className = 'text-yellow-400 font-semibold';
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analytics/camera-metrics?cam_id=${encodeURIComponent(camId)}&time_window_minutes=1`);
+      const response = await fetch(`${API_BASE_URL}/api/analytics/camera-metrics?cam_id=${encodeURIComponent(camId)}`);
+      if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+
       const result = await response.json();
 
-      if (result.success) {
+      if (result.success && result.data) {
         const data = result.data;
-
-        document.getElementById('analytics-speed').innerText = `${data.average_speed || '--'} km/h`;
-        
-        const statusElem = document.getElementById('analytics-speed-status');
+        document.getElementById('analytics-speed').innerText = `${data.average_speed || 0} km/h`;
         statusElem.innerText = data.status || 'Normal';
         statusElem.className = data.status_class || 'text-green-400 font-semibold';
 
         document.getElementById('analytics-count').innerText = (data.vehicle_count !== undefined) ? data.vehicle_count.toLocaleString() : '0';
         document.getElementById('analytics-capacity').innerText = `${data.capacity_percentage || 0}% Capacity`;
+      } else {
+        throw new Error(result.message || "Failed to retrieve metrics");
       }
     } catch (err) {
       console.error("Failed to update camera analytics:", err);
-      document.getElementById('analytics-speed-status').innerText = 'Offline / Error';
-      document.getElementById('analytics-speed-status').className = 'text-red-400 font-semibold';
+      statusElem.innerText = 'Offline / Error';
+      statusElem.className = 'text-red-400 font-semibold';
     }
   }
 
