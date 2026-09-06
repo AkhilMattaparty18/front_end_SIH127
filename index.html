@@ -221,8 +221,8 @@
         </div>
         
         <div class="p-3 border-b border-[#424754] bg-[#122131]">
-          <label for="camera-select" class="text-[10px] text-[#c2c6d6] uppercase tracking-wider block mb-1">Select Camera Junction</label>
-          <select id="camera-select" class="w-full bg-[#0d1c2d] border border-[#424754] text-xs font-mono p-2 text-[#d4e4fa] focus:outline-none focus:border-[#4d8eff]">
+          <label class="text-[10px] text-[#c2c6d6] uppercase tracking-wider block mb-1">Select Camera Junction</label>
+          <select id="camera-selector" onchange="updateCameraAnalytics(this.value)" class="w-full bg-[#0d1c2d] border border-[#424754] text-xs font-mono p-2 text-[#d4e4fa] focus:outline-none focus:border-[#4d8eff]">
             <option value="">Fetching camera list...</option>
           </select>
         </div>
@@ -231,13 +231,13 @@
           <div class="bg-[#051424] p-4 border border-[#424754]">
             <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider block">Average Traffic Speed</span>
             <div id="analytics-speed" class="text-3xl font-mono font-bold text-[#adc6ff] mt-2">-- km/h</div>
-            <p class="text-[11px] text-[#c2c6d6] mt-2"><span id="analytics-status" class="text-yellow-400 font-semibold">Status: Connecting...</span></p>
+            <p class="text-[11px] text-[#c2c6d6] mt-2">Status: <span id="analytics-speed-status" class="text-yellow-400 font-semibold">Connecting...</span></p>
           </div>
 
           <div class="bg-[#051424] p-4 border border-[#424754]">
-            <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider block">Vehicles Detected (Past Hour)</span>
-            <div id="analytics-vehicle-count" class="text-3xl font-mono font-bold text-[#adc6ff] mt-2">--</div>
-            <p id="analytics-capacity" class="text-[11px] text-yellow-400 font-semibold mt-2">Peak Density: --% Capacity</p>
+            <span class="text-[10px] text-[#c2c6d6] uppercase tracking-wider block">Vehicles Detected (Last Hour)</span>
+            <div id="analytics-count" class="text-3xl font-mono font-bold text-[#adc6ff] mt-2">--</div>
+            <p class="text-[11px] text-[#c2c6d6] mt-2">Peak Density: <span id="analytics-capacity" class="text-yellow-400 font-semibold">--% Capacity</span></p>
           </div>
         </div>
       </div>
@@ -285,14 +285,6 @@
     initDashboardMap();
     fetchDashboardStats();
     fetchRecentANPRActivity();
-
-    // Event Listener for analytics camera dropdown changes
-    const selectEl = document.getElementById('camera-select');
-    if (selectEl) {
-      selectEl.addEventListener('change', (e) => {
-        fetchCameraMetrics(e.target.value);
-      });
-    }
   });
 
   window.addEventListener('resize', () => {
@@ -336,7 +328,7 @@
       if (tabId === 'analytics') {
         if (!maps.analytics) initAnalyticsMap();
         maps.analytics.invalidateSize();
-        loadAnalyticsCameras();
+        loadDynamicCameraDropdown();
       }
       if (tabId === 'alerts') {
         if (!maps.alerts) initAlertsMap();
@@ -534,28 +526,23 @@
     }
   }
 
-  // Load active camera options into dropdown & plot on map
-  async function loadAnalyticsCameras() {
-    const selectEl = document.getElementById('camera-select');
-    if (!selectEl) return;
-
+  async function loadDynamicCameraDropdown() {
+    const selector = document.getElementById('camera-selector');
     try {
       const response = await fetch(`${API_BASE_URL}/api/analytics/cameras`);
+      if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+      
       const result = await response.json();
 
       if (result.success && Array.isArray(result.data) && result.data.length > 0) {
-        selectEl.innerHTML = ''; // Clear fallback options
+        selector.innerHTML = result.data.map(cam => 
+          `<option value="${cam.cam_id}">Camera ${cam.cam_id}</option>`
+        ).join('');
 
         if (layers.analyticsMarkers) layers.analyticsMarkers.clearLayers();
 
-        result.data.forEach((cam, index) => {
-          const option = document.createElement('option');
-          option.value = cam.cam_id;
-          option.textContent = `Camera ${cam.cam_id} ${index === 0 ? '(Default)' : ''}`;
-          selectEl.appendChild(option);
-
-          // Plot marker on Leaflet map
-          if (cam.latitude && cam.longitude && maps.analytics) {
+        result.data.forEach(cam => {
+          if (cam.latitude && cam.longitude) {
             const camIcon = L.divIcon({
               className: 'custom-node-marker',
               html: `<span class="material-symbols-outlined text-[14px]">videocam</span>`,
@@ -569,55 +556,55 @@
           }
         });
 
-        // Automatically fetch metrics for first camera
-        fetchCameraMetrics(result.data[0].cam_id);
+        const initialCamId = result.data[0].cam_id;
+        selector.value = initialCamId;
+        updateCameraAnalytics(initialCamId);
 
         if (!analyticsInterval) {
           analyticsInterval = setInterval(() => {
-            const currentCam = selectEl.value;
-            if (currentCam) fetchCameraMetrics(currentCam);
+            const currentCam = document.getElementById('camera-selector').value;
+            if (currentCam) updateCameraAnalytics(currentCam);
           }, 10000);
         }
       } else {
-        selectEl.innerHTML = '<option value="">No active cameras found</option>';
+        selector.innerHTML = `<option value="123">Camera 123 (Default)</option>`;
+        updateCameraAnalytics("123");
       }
-    } catch (error) {
-      console.error("Failed to load analytics cameras:", error);
-      selectEl.innerHTML = '<option value="">Error loading cameras</option>';
+    } catch (err) {
+      console.error("Failed to load camera dropdown:", err);
+      selector.innerHTML = `<option value="123">Camera 123 (Fallback)</option>`;
+      updateCameraAnalytics("123");
     }
   }
 
-  // Fetch camera metrics for speed, vehicle count, and density
-  async function fetchCameraMetrics(camId) {
+  async function updateCameraAnalytics(camId) {
     if (!camId) return;
+
+    const statusElem = document.getElementById('analytics-speed-status');
+    statusElem.innerText = 'Loading...';
+    statusElem.className = 'text-yellow-400 font-semibold';
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/analytics/camera-metrics?cam_id=${encodeURIComponent(camId)}`);
+      if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+
       const result = await response.json();
 
       if (result.success && result.data) {
         const data = result.data;
-        const speedEl = document.getElementById('analytics-speed');
-        const countEl = document.getElementById('analytics-vehicle-count');
-        const capacityEl = document.getElementById('analytics-capacity');
-        const statusEl = document.getElementById('analytics-status');
+        document.getElementById('analytics-speed').innerText = `${data.average_speed || 0} km/h`;
+        statusElem.innerText = data.status || 'Normal';
+        statusElem.className = data.status_class || 'text-green-400 font-semibold';
 
-        if (speedEl) speedEl.textContent = `${data.average_speed || 0} km/h`;
-        if (countEl) countEl.textContent = (data.vehicle_count !== undefined) ? data.vehicle_count.toLocaleString() : '0';
-        if (capacityEl) capacityEl.textContent = `Peak Density: ${data.capacity_percentage || 0}% Capacity`;
-
-        if (statusEl) {
-          statusEl.textContent = `Status: ${data.status || 'Normal'}`;
-          statusEl.className = data.status_class || 'text-green-400 font-semibold';
-        }
+        document.getElementById('analytics-count').innerText = (data.vehicle_count !== undefined) ? data.vehicle_count.toLocaleString() : '0';
+        document.getElementById('analytics-capacity').innerText = `${data.capacity_percentage || 0}% Capacity`;
+      } else {
+        throw new Error(result.message || "Failed to retrieve metrics");
       }
-    } catch (error) {
-      console.error("Failed to fetch camera metrics:", error);
-      const statusEl = document.getElementById('analytics-status');
-      if (statusEl) {
-        statusEl.textContent = 'Status: Offline / Error';
-        statusEl.className = 'text-red-400 font-semibold';
-      }
+    } catch (err) {
+      console.error("Failed to update camera analytics:", err);
+      statusElem.innerText = 'Offline / Error';
+      statusElem.className = 'text-red-400 font-semibold';
     }
   }
 
