@@ -52,18 +52,13 @@
     font-weight: bold;
     font-size: 11px;
     box-shadow: 0 0 10px rgba(77, 142, 255, 0.5);
+    cursor: pointer;
   }
   .custom-node-marker.critical {
     background: #4a0e17;
     color: #ffb4ab;
     border-color: #ffb4ab;
     box-shadow: 0 0 10px rgba(255, 180, 171, 0.6);
-  }
-  .directional-arrow {
-    color: #4d8eff;
-    font-size: 14px;
-    line-height: 1;
-    text-shadow: 0 0 4px #051424;
   }
 </style>
 </head>
@@ -351,10 +346,11 @@
       const response = await fetch(`${API_BASE_URL}/api/dashboard/stats`);
       const result = await response.json();
       if (result.success) {
-        document.getElementById('stat-active-cameras').innerText = `${result.data.active_cameras}`;
-        document.getElementById('stat-vehicles-detected').innerText = `${result.data.vehicles_detected.toLocaleString()}`;
-        document.getElementById('stat-anpr-reads').innerText = `${result.data.anpr_reads.toLocaleString()}`;
-        document.getElementById('stat-active-alerts').innerText = `${result.data.active_alerts}`;
+        document.getElementById('stat-active-cameras').innerText = `${result.data.active_cameras || 0}`;
+        const totalVehicles = result.data.vehicles_detected ?? result.data.vehicle_count ?? result.data.vehicles ?? 0;
+        document.getElementById('stat-vehicles-detected').innerText = `${totalVehicles.toLocaleString()}`;
+        document.getElementById('stat-anpr-reads').innerText = `${(result.data.anpr_reads || 0).toLocaleString()}`;
+        document.getElementById('stat-active-alerts').innerText = `${result.data.active_alerts || 0}`;
       }
     } catch (err) {
       console.error("Error fetching dashboard stats:", err);
@@ -536,13 +532,14 @@
 
       if (result.success && Array.isArray(result.data) && result.data.length > 0) {
         selector.innerHTML = result.data.map(cam => 
-          `<option value="${cam.cam_id}">Camera ${cam.cam_id}</option>`
+          `<option value="${cam.cam_id || cam.id}">Camera ${cam.cam_id || cam.id} ${cam.name ? `(${cam.name})` : ''}</option>`
         ).join('');
 
         if (layers.analyticsMarkers) layers.analyticsMarkers.clearLayers();
 
         result.data.forEach(cam => {
           if (cam.latitude && cam.longitude) {
+            const camId = cam.cam_id || cam.id;
             const camIcon = L.divIcon({
               className: 'custom-node-marker',
               html: `<span class="material-symbols-outlined text-[14px]">videocam</span>`,
@@ -550,13 +547,18 @@
               iconAnchor: [14, 14]
             });
 
-            L.marker([cam.latitude, cam.longitude], { icon: camIcon })
+            const marker = L.marker([cam.latitude, cam.longitude], { icon: camIcon })
               .addTo(layers.analyticsMarkers)
-              .bindPopup(`<b>Camera ${cam.cam_id}</b>`);
+              .bindPopup(`<b>Camera ${camId}</b>`);
+
+            marker.on('click', () => {
+              selector.value = camId;
+              updateCameraAnalytics(camId);
+            });
           }
         });
 
-        const initialCamId = result.data[0].cam_id;
+        const initialCamId = result.data[0].cam_id || result.data[0].id;
         selector.value = initialCamId;
         updateCameraAnalytics(initialCamId);
 
@@ -592,12 +594,22 @@
 
       if (result.success && result.data) {
         const data = result.data;
-        document.getElementById('analytics-speed').innerText = `${data.average_speed || 0} km/h`;
-        statusElem.innerText = data.status || 'Normal';
+        
+        // Speed extraction with fallback
+        const speed = data.average_speed ?? data.speed ?? 0;
+        document.getElementById('analytics-speed').innerText = `${speed} km/h`;
+        
+        // Status extraction
+        statusElem.innerText = data.status || 'Normal Traffic Flow';
         statusElem.className = data.status_class || 'text-green-400 font-semibold';
 
-        document.getElementById('analytics-count').innerText = (data.vehicle_count !== undefined) ? data.vehicle_count.toLocaleString() : '0';
-        document.getElementById('analytics-capacity').innerText = `${data.capacity_percentage || 0}% Capacity`;
+        // Robust vehicle count fallback extraction across potential backend schema keys
+        const vehicleCount = data.vehicle_count ?? data.vehicles_detected ?? data.vehicles ?? data.count ?? 0;
+        document.getElementById('analytics-count').innerText = Number(vehicleCount).toLocaleString();
+        
+        // Capacity percentage fallback extraction
+        const capacity = data.capacity_percentage ?? data.density ?? data.peak_density ?? 0;
+        document.getElementById('analytics-capacity').innerText = `${capacity}% Capacity`;
       } else {
         throw new Error(result.message || "Failed to retrieve metrics");
       }
@@ -605,6 +617,7 @@
       console.error("Failed to update camera analytics:", err);
       statusElem.innerText = 'Offline / Error';
       statusElem.className = 'text-red-400 font-semibold';
+      document.getElementById('analytics-count').innerText = '0';
     }
   }
 
