@@ -10,6 +10,8 @@
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet Polyline Decorator Plugin for Directional Arrows -->
+<script src="https://unpkg.com/leaflet-polyline-decorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
 
 <style>
   ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -494,7 +496,26 @@
       });
 
       if (latLngs.length > 0) {
-        const polyline = L.polyline(latLngs, { color: vehicleData.is_blacklisted ? '#ffb4ab' : '#4d8eff', weight: 4, dashArray: '6, 6' }).addTo(layers.anprRoute);
+        const polyColor = vehicleData.is_blacklisted ? '#ffb4ab' : '#4d8eff';
+        const polyline = L.polyline(latLngs, { color: polyColor, weight: 4, dashArray: '6, 6' }).addTo(layers.anprRoute);
+
+        // Add Directional Arrows along the path
+        if (L.polylineDecorator) {
+          L.polylineDecorator(polyline, {
+            patterns: [
+              {
+                offset: '15%',
+                repeat: '60px',
+                symbol: L.Symbol.arrowHead({
+                  pixelSize: 12,
+                  polygon: false,
+                  pathOptions: { stroke: true, color: polyColor, weight: 3 }
+                })
+              }
+            ]
+          }).addTo(layers.anprRoute);
+        }
+
         maps.anpr.fitBounds(polyline.getBounds(), { padding: [50, 50] });
       }
 
@@ -716,6 +737,24 @@
 
     if (latLngs.length > 0) {
       const polyline = L.polyline(latLngs, { color: '#ffb4ab', weight: 4 }).addTo(layers.alertsRoute);
+
+      // Add Directional Arrows along the alert path
+      if (L.polylineDecorator) {
+        L.polylineDecorator(polyline, {
+          patterns: [
+            {
+              offset: '15%',
+              repeat: '60px',
+              symbol: L.Symbol.arrowHead({
+                pixelSize: 12,
+                polygon: false,
+                pathOptions: { stroke: true, color: '#ffb4ab', weight: 3 }
+              })
+            }
+          ]
+        }).addTo(layers.alertsRoute);
+      }
+
       maps.alerts.fitBounds(polyline.getBounds(), { padding: [50, 50] });
     }
 
