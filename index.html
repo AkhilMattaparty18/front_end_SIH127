@@ -10,7 +10,7 @@
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- Leaflet Polyline Decorator Plugin for Directional Arrows -->
+<!-- Leaflet Polyline Decorator Plugin -->
 <script src="https://unpkg.com/leaflet-polyline-decorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
 
 <style>
@@ -443,6 +443,40 @@
     hideANPRBanner();
   }
 
+  /**
+   * Helper function to build custom arrow decorator patterned strictly like the user's sketch
+   * (Solid filled chevron/stealth shape along the path)
+   */
+  function createSketchArrowDecorator(polyline, color) {
+    return L.polylineDecorator(polyline, {
+      patterns: [
+        {
+          offset: '20%',
+          repeat: '80px',
+          symbol: L.Symbol.custom({
+            polygon: false,
+            draw: function(ctx) {
+              const size = 12;
+              const indent = 5;
+              ctx.fillStyle = color;
+              ctx.strokeStyle = color;
+              ctx.lineWidth = 1;
+
+              ctx.beginPath();
+              ctx.moveTo(size, 0);                 // Tip pointing forward
+              ctx.lineTo(-size, -size);             // Top wing tip
+              ctx.lineTo(-size + indent, 0);        // Inner indented tail center
+              ctx.lineTo(-size, size);              // Bottom wing tip
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+            }
+          })
+        }
+      ]
+    });
+  }
+
   async function performANPRSearch() {
     hideANPRBanner();
     const query = document.getElementById('anpr-search-input').value.trim().toUpperCase();
@@ -497,23 +531,11 @@
 
       if (latLngs.length > 0) {
         const polyColor = vehicleData.is_blacklisted ? '#ffb4ab' : '#4d8eff';
-        const polyline = L.polyline(latLngs, { color: polyColor, weight: 4, dashArray: '6, 6' }).addTo(layers.anprRoute);
+        const polyline = L.polyline(latLngs, { color: polyColor, weight: 3 }).addTo(layers.anprRoute);
 
-        // Add Directional Arrows along the path
+        // Add custom indented chevron arrows matching your sketch
         if (L.polylineDecorator) {
-          L.polylineDecorator(polyline, {
-            patterns: [
-              {
-                offset: '15%',
-                repeat: '60px',
-                symbol: L.Symbol.arrowHead({
-                  pixelSize: 12,
-                  polygon: false,
-                  pathOptions: { stroke: true, color: polyColor, weight: 3 }
-                })
-              }
-            ]
-          }).addTo(layers.anprRoute);
+          createSketchArrowDecorator(polyline, polyColor).addTo(layers.anprRoute);
         }
 
         maps.anpr.fitBounds(polyline.getBounds(), { padding: [50, 50] });
@@ -616,19 +638,15 @@
       if (result.success && result.data) {
         const data = result.data;
         
-        // Speed extraction with fallback
         const speed = data.average_speed ?? data.speed ?? 0;
         document.getElementById('analytics-speed').innerText = `${speed} km/h`;
         
-        // Status extraction
         statusElem.innerText = data.status || 'Normal Traffic Flow';
         statusElem.className = data.status_class || 'text-green-400 font-semibold';
 
-        // Robust vehicle count fallback extraction across potential backend schema keys
         const vehicleCount = data.vehicle_count ?? data.vehicles_detected ?? data.vehicles ?? data.count ?? 0;
         document.getElementById('analytics-count').innerText = Number(vehicleCount).toLocaleString();
         
-        // Capacity percentage fallback extraction
         const capacity = data.capacity_percentage ?? data.density ?? data.peak_density ?? 0;
         document.getElementById('analytics-capacity').innerText = `${capacity}% Capacity`;
       } else {
@@ -736,23 +754,11 @@
     });
 
     if (latLngs.length > 0) {
-      const polyline = L.polyline(latLngs, { color: '#ffb4ab', weight: 4 }).addTo(layers.alertsRoute);
+      const polyline = L.polyline(latLngs, { color: '#ffb4ab', weight: 3 }).addTo(layers.alertsRoute);
 
-      // Add Directional Arrows along the alert path
+      // Add custom indented chevron arrows matching your sketch
       if (L.polylineDecorator) {
-        L.polylineDecorator(polyline, {
-          patterns: [
-            {
-              offset: '15%',
-              repeat: '60px',
-              symbol: L.Symbol.arrowHead({
-                pixelSize: 12,
-                polygon: false,
-                pathOptions: { stroke: true, color: '#ffb4ab', weight: 3 }
-              })
-            }
-          ]
-        }).addTo(layers.alertsRoute);
+        createSketchArrowDecorator(polyline, '#ffb4ab').addTo(layers.alertsRoute);
       }
 
       maps.alerts.fitBounds(polyline.getBounds(), { padding: [50, 50] });
