@@ -55,10 +55,10 @@
     cursor: pointer;
   }
   .custom-node-marker.critical {
-    background: #4a0e17;
-    color: #ffb4ab;
-    border-color: #ffb4ab;
-    box-shadow: 0 0 10px rgba(255, 180, 171, 0.6);
+    background: #00285d;
+    color: #adc6ff;
+    border-color: #adc6ff;
+    box-shadow: 0 0 10px rgba(173, 198, 255, 0.6);
   }
 
   .arrow-icon {
@@ -126,11 +126,11 @@
         </div>
         <div id="stat-anpr-reads" class="font-mono text-[20px] text-[#adc6ff] font-semibold leading-none mt-1">--</div>
       </div>
-      <div class="bg-[#0d1c2d] border border-[#ffb4ab]/40 p-3 flex flex-col justify-between relative overflow-hidden">
-        <div class="absolute left-0 top-0 bottom-0 w-1 bg-[#ffb4ab]"></div>
+      <div class="bg-[#0d1c2d] border border-[#adc6ff]/40 p-3 flex flex-col justify-between relative overflow-hidden">
+        <div class="absolute left-0 top-0 bottom-0 w-1 bg-[#adc6ff]"></div>
         <div class="flex justify-between items-start pl-2">
-          <span class="text-[10px] text-[#ffb4ab] uppercase tracking-wider font-bold">Active Alerts</span>
-          <span class="material-symbols-outlined text-[#ffb4ab] text-[16px]">warning</span>
+          <span class="text-[10px] text-[#adc6ff] uppercase tracking-wider font-bold">Active Alerts</span>
+          <span class="material-symbols-outlined text-[#adc6ff] text-[16px]">warning</span>
         </div>
         <div id="stat-active-alerts" class="font-mono text-[20px] text-[#adc6ff] font-semibold leading-none mt-1 pl-2">--</div>
       </div>
@@ -167,12 +167,12 @@
 
   <!-- ANPR & VEHICLE SEARCH TAB -->
   <section id="tab-anpr" class="hidden flex-1 flex flex-col p-3 gap-3 overflow-hidden">
-    <div id="anpr-alert-banner" class="hidden bg-[#4a0e17] border border-[#ffb4ab] text-[#ffb4ab] px-3 py-2 text-xs flex justify-between items-center shrink-0">
+    <div id="anpr-alert-banner" class="hidden bg-[#0d2847] border border-[#adc6ff] text-[#adc6ff] px-3 py-2 text-xs flex justify-between items-center shrink-0">
       <span class="flex items-center gap-2 font-mono">
         <span class="material-symbols-outlined text-sm">warning</span>
         <span id="anpr-alert-message">No tracking data found for target query.</span>
       </span>
-      <button onclick="hideANPRBanner()" class="text-[#ffb4ab] hover:text-white font-bold">✕</button>
+      <button onclick="hideANPRBanner()" class="text-[#adc6ff] hover:text-white font-bold">✕</button>
     </div>
 
     <div class="bg-[#0d1c2d] border border-[#424754] p-3 flex gap-3 items-center shrink-0">
@@ -257,7 +257,7 @@
       <div class="w-[340px] bg-[#0d1c2d] border border-[#424754] flex flex-col shrink-0 overflow-hidden">
         <div class="px-3 py-2 bg-[#273647] border-b border-[#424754] flex justify-between items-center">
           <span class="text-[11px] font-bold uppercase tracking-wider">Alert Movement Path</span>
-          <span id="alerts-plate-tag" class="font-mono text-xs text-[#ffb4ab] font-bold">SELECT AN ALERT</span>
+          <span id="alerts-plate-tag" class="font-mono text-xs text-[#adc6ff] font-bold">SELECT AN ALERT</span>
         </div>
         <div id="alerts-path-list" class="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-xs">
           <p class="text-[#c2c6d6] italic text-center mt-10">Select an alert card above to view the trajectory.</p>
@@ -354,7 +354,7 @@
         const totalVehicles = result.data.vehicles_detected ?? result.data.vehicle_count ?? result.data.vehicles ?? 0;
         document.getElementById('stat-vehicles-detected').innerText = `${totalVehicles.toLocaleString()}`;
         document.getElementById('stat-anpr-reads').innerText = `${(result.data.anpr_reads || 0).toLocaleString()}`;
-        document.getElementById('stat-active-alerts').innerText = `${result.data.active_alerts || 0}`;
+        document.getElementById('stat-[#stat-active-alerts]').innerText = `${result.data.active_alerts || 0}`;
       }
     } catch (err) {
       console.error("Error fetching dashboard stats:", err);
@@ -446,7 +446,7 @@
   }
 
   /**
-   * Render SVG stealth chevron arrowheads along polyline segments
+   * Render SVG stealth chevron arrowheads along polyline segments in blue
    */
   function addSVGDirectionalArrows(map, layerGroup, latLngs, color) {
     if (latLngs.length < 2) return;
@@ -495,7 +495,7 @@
 
       if (!response.ok || !result.success) {
         showANPRBanner(result.message || `No tracking data found for target plate: ${query}`);
-        pathList.innerHTML = `<p class="text-[#ffb4ab] text-center mt-10">${result.message || 'No data found'}</p>`;
+        pathList.innerHTML = `<p class="text-[#adc6ff] text-center mt-10">${result.message || 'No data found'}</p>`;
         return;
       }
 
@@ -531,7 +531,7 @@
       });
 
       if (latLngs.length > 0) {
-        const polyColor = vehicleData.is_blacklisted ? '#ffb4ab' : '#4d8eff';
+        const polyColor = '#4d8eff';
         const polyline = L.polyline(latLngs, { color: polyColor, weight: 3 }).addTo(layers.anprRoute);
 
         maps.anpr.fitBounds(polyline.getBounds(), { padding: [50, 50] });
@@ -548,7 +548,7 @@
       }
 
       pathList.innerHTML = trail.map((pt, idx) => `
-        <div class="p-2 border-l-2 ${idx === trail.length - 1 ? 'border-[#ffb4ab] bg-[#ffb4ab]/10' : 'border-[#4d8eff] bg-[#122131]'}">
+        <div class="p-2 border-l-2 border-[#4d8eff] bg-[#122131]">
           <div class="flex justify-between font-bold text-[#d4e4fa]">
             <span>Node ${idx + 1}: Cam ${pt.cam_id}</span>
           </div>
@@ -702,14 +702,14 @@
       const lastTime = alert.last_occurrence ? alert.last_occurrence.time_stamp.replace('T', ' ').replace('Z', '') : '--';
 
       return `
-        <div onclick="selectAlertVehicle('${alert.vehicle_id}')" id="card-${alert.vehicle_id}" class="w-[280px] shrink-0 bg-[#0d1c2d] border border-[#ffb4ab] p-3 flex flex-col justify-between cursor-pointer hover:bg-[#122131] transition-all">
+        <div onclick="selectAlertVehicle('${alert.vehicle_id}')" id="card-${alert.vehicle_id}" class="w-[280px] shrink-0 bg-[#0d1c2d] border border-[#4d8eff] p-3 flex flex-col justify-between cursor-pointer hover:bg-[#122131] transition-all">
           <div class="flex justify-between items-start">
-            <span class="font-mono text-sm font-bold text-[#ffb4ab]">${alert.vehicle_id}</span>
-            <span class="bg-[#ffb4ab]/20 text-[#ffb4ab] text-[9px] px-2 py-0.5 font-bold uppercase border border-[#ffb4ab]/40">CRITICAL</span>
+            <span class="font-mono text-sm font-bold text-[#adc6ff]">${alert.vehicle_id}</span>
+            <span class="bg-[#4d8eff]/20 text-[#adc6ff] text-[9px] px-2 py-0.5 font-bold uppercase border border-[#4d8eff]/40">CRITICAL</span>
           </div>
           <div class="my-1">
             <p class="text-[10px] text-[#c2c6d6] uppercase">Alert Reason</p>
-            <p class="text-xs font-bold text-red-400">${alert.blacklist_reason || 'Blacklisted Target'}</p>
+            <p class="text-xs font-bold text-[#adc6ff]">${alert.blacklist_reason || 'Blacklisted Target'}</p>
           </div>
           <div class="text-[10px] font-mono text-[#c2c6d6] flex justify-between pt-2 border-t border-[#424754]">
             <span>Cam: ${lastCam}</span>
@@ -760,25 +760,26 @@
     });
 
     if (latLngs.length > 0) {
-      const polyline = L.polyline(latLngs, { color: '#ffb4ab', weight: 3 }).addTo(layers.alertsRoute);
+      const polyColor = '#4d8eff';
+      const polyline = L.polyline(latLngs, { color: polyColor, weight: 3 }).addTo(layers.alertsRoute);
 
       maps.alerts.fitBounds(polyline.getBounds(), { padding: [50, 50] });
 
-      addSVGDirectionalArrows(maps.alerts, layers.alertsRoute, latLngs, '#ffb4ab');
+      addSVGDirectionalArrows(maps.alerts, layers.alertsRoute, latLngs, polyColor);
       maps.alerts.off('zoomend moveend').on('zoomend moveend', () => {
         layers.alertsRoute.eachLayer(layer => {
           if (layer instanceof L.Marker && layer.options.icon.options.className === 'arrow-icon') {
             layers.alertsRoute.removeLayer(layer);
           }
         });
-        addSVGDirectionalArrows(maps.alerts, layers.alertsRoute, latLngs, '#ffb4ab');
+        addSVGDirectionalArrows(maps.alerts, layers.alertsRoute, latLngs, polyColor);
       });
     }
 
     const pathList = document.getElementById('alerts-path-list');
     pathList.innerHTML = trail.map((pt, idx) => `
-      <div class="p-2 border-l-2 border-[#ffb4ab] bg-[#ffb4ab]/10">
-        <div class="flex justify-between font-bold text-[#ffb4ab]">
+      <div class="p-2 border-l-2 border-[#4d8eff] bg-[#122131]">
+        <div class="flex justify-between font-bold text-[#adc6ff]">
           <span>Point ${idx + 1}: Cam ${pt.cam_id}</span>
         </div>
         <div class="text-[10px] text-[#c2c6d6] mt-1">Detected Time: <span class="text-[#d4e4fa]">${pt.time_stamp ? pt.time_stamp.replace('T', ' ').replace('Z', '') : 'N/A'}</span></div>
