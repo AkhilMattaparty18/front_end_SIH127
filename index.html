@@ -354,7 +354,7 @@
         const totalVehicles = result.data.vehicles_detected ?? result.data.vehicle_count ?? result.data.vehicles ?? 0;
         document.getElementById('stat-vehicles-detected').innerText = `${totalVehicles.toLocaleString()}`;
         document.getElementById('stat-anpr-reads').innerText = `${(result.data.anpr_reads || 0).toLocaleString()}`;
-        document.getElementById('stat-[#stat-active-alerts]').innerText = `${result.data.active_alerts || 0}`;
+        document.getElementById('stat-active-alerts').innerText = `${result.data.active_alerts || 0}`;
       }
     } catch (err) {
       console.error("Error fetching dashboard stats:", err);
@@ -511,6 +511,9 @@
       if (layers.anprRoute) maps.anpr.removeLayer(layers.anprRoute);
       layers.anprRoute = L.layerGroup().addTo(maps.anpr);
 
+      // Unbind previous zoom/move listeners to prevent stale map callbacks from breaking arrows
+      maps.anpr.off('zoomend moveend');
+
       const latLngs = [];
       trail.forEach((pt, index) => {
         if (pt.latitude && pt.longitude) {
@@ -534,17 +537,20 @@
         const polyColor = '#4d8eff';
         const polyline = L.polyline(latLngs, { color: polyColor, weight: 3 }).addTo(layers.anprRoute);
 
-        maps.anpr.fitBounds(polyline.getBounds(), { padding: [50, 50] });
-
-        addSVGDirectionalArrows(maps.anpr, layers.anprRoute, latLngs, polyColor);
-        maps.anpr.off('zoomend moveend').on('zoomend moveend', () => {
+        const updateANPRArrows = () => {
           layers.anprRoute.eachLayer(layer => {
-            if (layer instanceof L.Marker && layer.options.icon.options.className === 'arrow-icon') {
+            if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'arrow-icon') {
               layers.anprRoute.removeLayer(layer);
             }
           });
           addSVGDirectionalArrows(maps.anpr, layers.anprRoute, latLngs, polyColor);
-        });
+        };
+
+        // Fit map bounds instantly without animation artifacts
+        maps.anpr.fitBounds(polyline.getBounds(), { padding: [50, 50], animate: false });
+
+        updateANPRArrows();
+        maps.anpr.on('zoomend moveend', updateANPRArrows);
       }
 
       pathList.innerHTML = trail.map((pt, idx) => `
@@ -741,6 +747,9 @@
     if (layers.alertsRoute) maps.alerts.removeLayer(layers.alertsRoute);
     layers.alertsRoute = L.layerGroup().addTo(maps.alerts);
 
+    // Unbind previous zoom/move listeners to prevent stale map callbacks from breaking arrows
+    maps.alerts.off('zoomend moveend');
+
     const latLngs = [];
     trail.forEach((pt, index) => {
       if (pt.latitude && pt.longitude) {
@@ -763,17 +772,24 @@
       const polyColor = '#4d8eff';
       const polyline = L.polyline(latLngs, { color: polyColor, weight: 3 }).addTo(layers.alertsRoute);
 
-      maps.alerts.fitBounds(polyline.getBounds(), { padding: [50, 50] });
-
-      addSVGDirectionalArrows(maps.alerts, layers.alertsRoute, latLngs, polyColor);
-      maps.alerts.off('zoomend moveend').on('zoomend moveend', () => {
+      const updateArrows = () => {
+        // Clear existing arrows before re-drawing
         layers.alertsRoute.eachLayer(layer => {
-          if (layer instanceof L.Marker && layer.options.icon.options.className === 'arrow-icon') {
+          if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'arrow-icon') {
             layers.alertsRoute.removeLayer(layer);
           }
         });
         addSVGDirectionalArrows(maps.alerts, layers.alertsRoute, latLngs, polyColor);
-      });
+      };
+
+      // Fit map bounds instantly without transition delay/animation artifacts
+      maps.alerts.fitBounds(polyline.getBounds(), { padding: [50, 50], animate: false });
+
+      // Draw initial arrows once bounds are fixed
+      updateArrows();
+
+      // Re-attach map motion listener cleanly
+      maps.alerts.on('zoomend moveend', updateArrows);
     }
 
     const pathList = document.getElementById('alerts-path-list');
