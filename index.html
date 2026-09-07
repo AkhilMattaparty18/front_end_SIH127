@@ -10,8 +10,6 @@
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- Leaflet Polyline Decorator Plugin -->
-<script src="https://unpkg.com/leaflet-polyline-decorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
 
 <style>
   ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -61,6 +59,10 @@
     color: #ffb4ab;
     border-color: #ffb4ab;
     box-shadow: 0 0 10px rgba(255, 180, 171, 0.6);
+  }
+
+  .arrow-icon {
+    pointer-events: none;
   }
 </style>
 </head>
@@ -444,37 +446,36 @@
   }
 
   /**
-   * Helper function to build custom arrow decorator patterned strictly like the user's sketch
-   * (Solid filled chevron/stealth shape along the path)
+   * Render SVG stealth chevron arrowheads along polyline segments
    */
-  function createSketchArrowDecorator(polyline, color) {
-    return L.polylineDecorator(polyline, {
-      patterns: [
-        {
-          offset: '20%',
-          repeat: '80px',
-          symbol: L.Symbol.custom({
-            polygon: false,
-            draw: function(ctx) {
-              const size = 12;
-              const indent = 5;
-              ctx.fillStyle = color;
-              ctx.strokeStyle = color;
-              ctx.lineWidth = 1;
+  function addSVGDirectionalArrows(map, layerGroup, latLngs, color) {
+    if (latLngs.length < 2) return;
 
-              ctx.beginPath();
-              ctx.moveTo(size, 0);                 // Tip pointing forward
-              ctx.lineTo(-size, -size);             // Top wing tip
-              ctx.lineTo(-size + indent, 0);        // Inner indented tail center
-              ctx.lineTo(-size, size);              // Bottom wing tip
-              ctx.closePath();
-              ctx.fill();
-              ctx.stroke();
-            }
-          })
-        }
-      ]
-    });
+    for (let i = 0; i < latLngs.length - 1; i++) {
+      const p1 = map.latLngToContainerPoint(latLngs[i]);
+      const p2 = map.latLngToContainerPoint(latLngs[i + 1]);
+
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+
+      const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * (180 / Math.PI);
+      const midLatLng = map.containerPointToLatLng([midX, midY]);
+
+      const svgArrowHtml = `
+        <svg width="24" height="24" viewBox="0 0 24 24" style="transform: rotate(${angle}deg); transform-origin: center center;">
+          <polygon points="18,12 4,4 8,12 4,20" fill="${color}" stroke="${color}" stroke-width="1"/>
+        </svg>
+      `;
+
+      const arrowIcon = L.divIcon({
+        className: 'arrow-icon',
+        html: svgArrowHtml,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+
+      L.marker(midLatLng, { icon: arrowIcon, interactive: false }).addTo(layerGroup);
+    }
   }
 
   async function performANPRSearch() {
@@ -533,12 +534,17 @@
         const polyColor = vehicleData.is_blacklisted ? '#ffb4ab' : '#4d8eff';
         const polyline = L.polyline(latLngs, { color: polyColor, weight: 3 }).addTo(layers.anprRoute);
 
-        // Add custom indented chevron arrows matching your sketch
-        if (L.polylineDecorator) {
-          createSketchArrowDecorator(polyline, polyColor).addTo(layers.anprRoute);
-        }
-
         maps.anpr.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+
+        addSVGDirectionalArrows(maps.anpr, layers.anprRoute, latLngs, polyColor);
+        maps.anpr.off('zoomend moveend').on('zoomend moveend', () => {
+          layers.anprRoute.eachLayer(layer => {
+            if (layer instanceof L.Marker && layer.options.icon.options.className === 'arrow-icon') {
+              layers.anprRoute.removeLayer(layer);
+            }
+          });
+          addSVGDirectionalArrows(maps.anpr, layers.anprRoute, latLngs, polyColor);
+        });
       }
 
       pathList.innerHTML = trail.map((pt, idx) => `
@@ -756,12 +762,17 @@
     if (latLngs.length > 0) {
       const polyline = L.polyline(latLngs, { color: '#ffb4ab', weight: 3 }).addTo(layers.alertsRoute);
 
-      // Add custom indented chevron arrows matching your sketch
-      if (L.polylineDecorator) {
-        createSketchArrowDecorator(polyline, '#ffb4ab').addTo(layers.alertsRoute);
-      }
-
       maps.alerts.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+
+      addSVGDirectionalArrows(maps.alerts, layers.alertsRoute, latLngs, '#ffb4ab');
+      maps.alerts.off('zoomend moveend').on('zoomend moveend', () => {
+        layers.alertsRoute.eachLayer(layer => {
+          if (layer instanceof L.Marker && layer.options.icon.options.className === 'arrow-icon') {
+            layers.alertsRoute.removeLayer(layer);
+          }
+        });
+        addSVGDirectionalArrows(maps.alerts, layers.alertsRoute, latLngs, '#ffb4ab');
+      });
     }
 
     const pathList = document.getElementById('alerts-path-list');
